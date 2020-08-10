@@ -18,6 +18,7 @@ Command
   $0
 Arguments
   --aks_name|-an                      : The name of the AKS cluster to connect to
+  --auth_type|-at                     : Whether the identity is Managed or SP(Service Principal)
   --client_id|-clid                   : The service principal ID.
   --client_secret|-clis               : The service principal secret.
   --subscription_id|-subid            : The subscription ID of the SP.
@@ -44,15 +45,19 @@ function throw_if_empty() {
 function init() {
   echo "\n---------- Init ----------\n"
   apt-get update --yes
+  apt-get install wget --yes
 }
 
 function azureCliInstall() {
   echo "\n---------- Installing Az Cli ----------\n"
   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-  apt-get install wget --yes
-
-  #az login --service-principal -u "$client_id" -p "$client_secret" -t "$tenant_id"
-  az login --identity
+  
+  if [ "$auth_type" = "sp" ]; then
+    az login --service-principal -u "$client_id" -p "$client_secret" -t "$tenant_id"
+  else  
+    az login --identity
+  fi
+  
   az account set --subscription "${subscription_id}"
   az aks get-credentials --resource-group "${resource_group}" --name "${aks_name}"
 }
@@ -231,22 +236,26 @@ do
       aks_name="$1"
       shift
       ;;
-    #--client_id|-clid)
-    #  client_id="$1"
-    #  shift
-    #  ;;
-    #--client_secret|-clis)
-    #  client_secret="$1"
-    #  shift
-    #  ;;
+    --auth_type|-at)
+      auth_type="$1"
+      shift
+      ;;
+    --client_id|-clid)
+      client_id="$1"
+      shift
+      ;;
+    --client_secret|-clis)
+      client_secret="$1"
+      shift
+      ;;
     --subscription_id|-subid)
       subscription_id="$1"
       shift
       ;;
-    #--tenant_id|-tid)
-    #  tenant_id="$1"
-    #  shift
-    #  ;;
+    --tenant_id|-tid)
+      tenant_id="$1"
+      shift
+      ;;
     --resource_group|-rg)
       resource_group="$1"
       shift
@@ -285,15 +294,19 @@ done
 #---------------------------------------------------------------------------------
 
 throw_if_empty --aks_name "$aks_name"
-#throw_if_empty --client_id "$client_id"
-#throw_if_empty --client_secret "$client_secret"
+throw_if_empty --auth_type "$auth_type"
 throw_if_empty --subscription_id "$subscription_id"
-#throw_if_empty --tenant_id "$tenant_id"
 throw_if_empty --resource_group "$resource_group"
 throw_if_empty --kcluster_name "$kcluster_name"
 throw_if_empty --ranks "$ranks"
 throw_if_empty --rank_storage "$rank_storage"
 throw_if_empty --deployment_type "$deployment_type"
+
+if [ "$auth_type" = "sp" ]; then
+  throw_if_empty --client_id "$client_id"
+  throw_if_empty --client_secret "$client_secret"
+  throw_if_empty --tenant_id "$tenant_id"
+fi
 
 azureCliInstall
 
@@ -308,3 +321,4 @@ fi
 #loadOperator
 
 #deployKineticaCluster
+
