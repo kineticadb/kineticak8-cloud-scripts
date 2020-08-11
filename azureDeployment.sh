@@ -161,7 +161,24 @@ EOF
 
 function loadOperator() {
   echo "\n---------- Generating Porter Credentials ----------\n"
-  porter credentials generate --tag kinetica/kinetica-k8s-operator:v0.1
+  #porter credentials generate --tag kinetica/kinetica-k8s-operator:v0.1
+  TIMESTAMP=$(date -u +%Y-%m-%dT%T.%NZ)
+  cat <<EOF | tee /root/.porter/credentials/kinetica-k8s-operator.json
+{
+  "name": "kinetica-k8s-operator",
+  "created": "$TIMESTAMP",
+  "modified": "$TIMESTAMP",
+  "credentials": [
+    {
+      "name": "kubeconfig",
+      "source": {
+        "path": "/root/.kube/config"
+      }
+    }
+  ]
+}
+EOF
+
   echo "\n---------- Installing Kinetica Operator ----------\n"
   porter install kinetica-k8s-operator -c kinetica-k8s-operator -t kinetica/kinetica-k8s-operator:v0.1
 }
@@ -318,7 +335,7 @@ if [ "$deployment_type" = "gpu" ]; then
   gpuSetup
 fi
 
-#loadOperator
+loadOperator
 
 #deployKineticaCluster
 
