@@ -163,6 +163,7 @@ function loadOperator() {
   echo "\n---------- Generating Porter Credentials ----------\n"
   #porter credentials generate --tag kinetica/kinetica-k8s-operator:v0.1
   TIMESTAMP=$(date -u +%Y-%m-%dT%T.%NZ)
+  touch /root/.porter/credentials/kinetica-k8s-operator.json
   cat <<EOF | tee /root/.porter/credentials/kinetica-k8s-operator.json
 {
   "name": "kinetica-k8s-operator",
@@ -189,21 +190,22 @@ function deployKineticaCluster() {
 apiVersion: app.kinetica.com/v1
 kind: KineticaCluster
 metadata:
-  name: "$kcluster_name"
+  name: kineticacluster-sample
   namespace: gpudb
 spec:
   clusterDaemon:
     bindAddress: "serf://0.0.0.0:7946"
+    rpcAddress: "rpc://127.0.0.1:7373"
   hostManagerMonitor:
     # Queries 9300 every 10 seconds and this is 6 consecutive failures s oRank is down
     # 6 x 10 seconds = 1 minute in total
     maxRankFailureCount: 6
+  ingressController: "kong"
   gpudbCluster:
-    ingressController: "traefik"
     license: "$license_key"
     # Override the default image, kinetica/kinetica-k8s-intel:latest with other values
     # e.g. kinetica/kinetica-k8s-intel:v0.1
-    image: kinetica/kinetica-k8s-intel:latest
+    image: kinetica/kinetica-k8s-intel:v0.2
     clusterName: "$kcluster_name"
     # Uses persist on the host local volumes
     provisioner: kubernetes.io/azure-disk
@@ -211,7 +213,14 @@ spec:
     replicas: "$ranks"
     # Disk Persist Size
     rankStorageSize: "$rank_storage"
-    # Used only for Ingress at the moment it does not change the gpudb.conf
+    persistTier:
+      volumeClaim:
+        spec:
+          storageClassName: "managed-premium"
+    diskCacheTier:
+      volumeClaim:
+        spec:
+          storageClassName: "managed-premium"
     hostManagerPort:
       name: "hostmanager"
       protocol: TCP
@@ -224,7 +233,6 @@ spec:
         cpu: "0.5"
   # Used only for Ingress at the moment it does not change the gpudb.conf
   gadmin:
-    ingressController: "traefik"
     isEnabled: true
     containerPort:
       name: "gadmin"
@@ -232,7 +240,6 @@ spec:
       containerPort: 8080
   # Used only for Ingress at the moment it does not change the gpudb.conf
   reveal:
-    ingressController: "traefik"
     isEnabled: true
     containerPort:
       name: "reveal"
