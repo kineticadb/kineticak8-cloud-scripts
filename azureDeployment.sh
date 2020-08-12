@@ -163,6 +163,7 @@ function loadOperator() {
   echo "\n---------- Generating Porter Credentials ----------\n"
   #porter credentials generate --tag kinetica/kinetica-k8s-operator:v0.1
   TIMESTAMP=$(date -u +%Y-%m-%dT%T.%NZ)
+  mkdir -p /root/.porter/credentials/
   touch /root/.porter/credentials/kinetica-k8s-operator.json
   cat <<EOF | tee /root/.porter/credentials/kinetica-k8s-operator.json
 {
