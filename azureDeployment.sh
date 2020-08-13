@@ -343,7 +343,7 @@ if [ "$deployment_type" = "gpu" ]; then
   gpuSetup
 fi
 
-loadOperator
+#loadOperator
 
 #deployKineticaCluster
 
