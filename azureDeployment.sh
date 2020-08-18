@@ -182,64 +182,57 @@ function loadOperator() {
 EOF
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator -t kinetica/kinetica-k8s-operator:v0.1
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator -t kinetica/kinetica-k8s-operator:v0.3 --param environment=aks
 }
 
 function deployKineticaCluster() {
   echo "\n---------- Creating Kinetica Cluster ----------\n"
+  # change to manged premium after the fact
   cat <<EOF | kubectl apply -f -
 apiVersion: app.kinetica.com/v1
 kind: KineticaCluster
 metadata:
-  name: kineticacluster-sample
+  name: "$kcluster_name"
   namespace: gpudb
 spec:
   clusterDaemon:
     bindAddress: "serf://0.0.0.0:7946"
     rpcAddress: "rpc://127.0.0.1:7373"
   hostManagerMonitor:
-    # Queries 9300 every 10 seconds and this is 6 consecutive failures s oRank is down
-    # 6 x 10 seconds = 1 minute in total
-    maxRankFailureCount: 6
+    maxRankFailureCount: 12
   ingressController: "kong"
   gpudbCluster:
     license: "$license_key"
-    # Override the default image, kinetica/kinetica-k8s-intel:latest with other values
-    # e.g. kinetica/kinetica-k8s-intel:v0.1
     image: kinetica/kinetica-k8s-intel:v0.2
     clusterName: "$kcluster_name"
-    # Uses persist on the host local volumes
     provisioner: kubernetes.io/azure-disk
-    # Number of Pods. 3 = 1 head node Rank0 + 2 pods with RankN
     replicas: "$ranks"
-    # Disk Persist Size
     rankStorageSize: "$rank_storage"
     persistTier:
       volumeClaim:
         spec:
-          storageClassName: "managed-premium"
+          storageClassName: "default"
     diskCacheTier:
       volumeClaim:
         spec:
-          storageClassName: "managed-premium"
+          storageClassName: "default"
     hostManagerPort:
       name: "hostmanager"
       protocol: TCP
       containerPort: 9300
-    # Used only for Pod limits in k8s at the moment. It does not change the gpudb.conf
     resources:
       limits:
-        cpu: "1"
+        cpu: "1.5"
+        memory: "4Gi"
       requests:
-        cpu: "0.5"
-  # Used only for Ingress at the moment it does not change the gpudb.conf
+        cpu: "1"
+        memory: "2Gi"
   gadmin:
     isEnabled: true
     containerPort:
       name: "gadmin"
       protocol: TCP
       containerPort: 8080
-  # Used only for Ingress at the moment it does not change the gpudb.conf
   reveal:
     isEnabled: true
     containerPort:
@@ -343,7 +336,7 @@ if [ "$deployment_type" = "gpu" ]; then
   gpuSetup
 fi
 
-#loadOperator
+loadOperator
 
-#deployKineticaCluster
+deployKineticaCluster
 
