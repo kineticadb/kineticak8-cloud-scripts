@@ -200,12 +200,11 @@ spec:
     rpcAddress: "rpc://127.0.0.1:7373"
   hostManagerMonitor:
     maxRankFailureCount: 12
-  ingressController: "kong"
+  ingressController: kong
   gpudbCluster:
     license: "$license_key"
     image: kinetica/kinetica-k8s-intel:v0.2
     clusterName: "$kcluster_name"
-    provisioner: kubernetes.io/azure-disk
     replicas: "$ranks"
     rankStorageSize: "$rank_storage"
     persistTier:
