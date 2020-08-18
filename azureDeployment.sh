@@ -161,7 +161,7 @@ EOF
 
 function loadOperator() {
   echo "\n---------- Generating Porter Credentials ----------\n"
-  #porter credentials generate --tag kinetica/kinetica-k8s-operator:v0.1
+  #porter credentials generate --tag kinetica/kinetica-k8s-operator:v0.3
   TIMESTAMP=$(date -u +%Y-%m-%dT%T.%NZ)
   mkdir -p /root/.porter/credentials/
   touch /root/.porter/credentials/kinetica-k8s-operator.json
@@ -188,7 +188,7 @@ EOF
 function deployKineticaCluster() {
   echo "\n---------- Creating Kinetica Cluster ----------\n"
   # change to manged premium after the fact
-  cat <<EOF | kubectl apply -f -
+  cat <<EOF | kubectl apply --wait -f -
 apiVersion: app.kinetica.com/v1
 kind: KineticaCluster
 metadata:
@@ -240,6 +240,29 @@ spec:
       containerPort: 8088
 EOF
 
+}
+
+checkForClusterReadiness() {
+  # Wait for pods to be in ready state:
+  while [[ "$(kubectl -n gpudb get pods -l app=gpudb -o jsonpath='{..status.conditions[?(@.type!="Ready")].status}')" == "" ]]; do
+    echo "waiting for pods to be up" 
+    sleep 10
+  done
+
+  # Wait for service to be up:
+  while [[ "$(kubectl -n kong get svc kong-proxy -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
+    echo "waiting for ip to be ready"
+    sleep 10
+  done
+
+  # Get external IP Address:
+  clusterIP="$(kubectl -n kong get svc kong-proxy -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
+
+  # Make sure gadmin is up
+  while [[ "$(curl -s -o /dev/null -L -w ''%{http_code}'' "$clusterIP"/gadmin)" != '200' ]]; do
+    echo "Waiting for gadmin to be up"
+    sleep 10
+  done
 }
 
 #---------------------------------------------------------------------------------
@@ -338,4 +361,6 @@ fi
 loadOperator
 
 deployKineticaCluster
+
+checkForClusterReadiness
 
