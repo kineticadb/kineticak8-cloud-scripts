@@ -159,6 +159,14 @@ spec:
 EOF
 }
 
+checkForExternalIP() {
+  # Wait for service to be up:
+  while [[ "$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
+    echo "waiting for ip to be ready"
+    sleep 10
+  done
+}
+
 function loadOperator() {
   echo "\n---------- Generating Porter Credentials ----------\n"
   #porter credentials generate --tag kinetica/kinetica-k8s-operator:v0.3
@@ -183,6 +191,8 @@ EOF
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
   porter install kinetica-k8s-operator -c kinetica-k8s-operator -t kinetica/kinetica-k8s-operator:v0.2.2 --param environment=aks
+  echo "\n---------- Waiiting for Ingress to be available --\n"
+  checkForExternalIP
 }
 
 function deployKineticaCluster() {
@@ -250,14 +260,8 @@ checkForClusterReadiness() {
     sleep 10
   done
 
-  # Wait for service to be up:
-  while [[ "$(kubectl -n kong get svc kong-proxy -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
-    echo "waiting for ip to be ready"
-    sleep 10
-  done
-
   # Get external IP Address:
-  clusterIP="$(kubectl -n kong get svc kong-proxy -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
+  clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
 
   # Make sure gadmin is up
   while [[ "$(curl -s -o /dev/null -L -w ''%{http_code}'' "$clusterIP"/gadmin)" != '200' ]]; do
