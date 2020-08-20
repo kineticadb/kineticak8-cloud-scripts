@@ -182,7 +182,7 @@ function loadOperator() {
 EOF
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator -t kinetica/kinetica-k8s-operator:v0.3 --param environment=aks
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator -t kinetica/kinetica-k8s-operator:v0.2.2 --param environment=aks
 }
 
 function deployKineticaCluster() {
@@ -200,7 +200,7 @@ spec:
     rpcAddress: "rpc://127.0.0.1:7373"
   hostManagerMonitor:
     maxRankFailureCount: 12
-  ingressController: kong
+  ingressController: nginx
   gpudbCluster:
     license: "$license_key"
     image: kinetica/kinetica-k8s-intel:v0.2
