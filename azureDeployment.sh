@@ -199,7 +199,8 @@ spec:
     bindAddress: "serf://0.0.0.0:7946"
     rpcAddress: "rpc://127.0.0.1:7373"
   hostManagerMonitor:
-    maxRankFailureCount: 12
+    livenessProbe:
+      failureThreshold: 10
   ingressController: nginx
   gpudbCluster:
     license: "$license_key"
