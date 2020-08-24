@@ -96,14 +96,14 @@ function preflightOperator() {
     curl https://cdn.porter.sh/latest/install-linux.sh | bash
     ln -s ~/.porter/porter /usr/local/bin/porter 
     ln -s ~/.porter/porter-runtime /usr/local/bin/porter-runtime
-    echo "\n---------- Installing Porter Mixins ----------\n"
-    porter mixin install helm3 --version v0.1.5 --feed-url  https://mchorfa.github.com/porter-helm3/atom.xml
-    porter mixin install kustomize --url https://github.com/donmstewart/porter-kustomize/releases/download --version 0.2-beta-4
+    #echo "\n---------- Installing Porter Mixins ----------\n"
+    #porter mixin install helm3 --version v0.1.5 --feed-url  https://mchorfa.github.com/porter-helm3/atom.xml
+    #porter mixin install kustomize --url https://github.com/donmstewart/porter-kustomize/releases/download --version 0.2-beta-4
   fi
-  if !(command -v kustomize >/dev/null); then
-    echo "\n---------- Installing Kustomize ----------\n"
-    curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
-  fi
+  #if !(command -v kustomize >/dev/null); then
+    #echo "\n---------- Installing Kustomize ----------\n"
+    #curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+  #fi
   popd
 }
 
