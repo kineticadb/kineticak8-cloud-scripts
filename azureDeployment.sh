@@ -96,14 +96,7 @@ function preflightOperator() {
     curl https://cdn.porter.sh/latest/install-linux.sh | bash
     ln -s ~/.porter/porter /usr/local/bin/porter 
     ln -s ~/.porter/porter-runtime /usr/local/bin/porter-runtime
-    #echo "\n---------- Installing Porter Mixins ----------\n"
-    #porter mixin install helm3 --version v0.1.5 --feed-url  https://mchorfa.github.com/porter-helm3/atom.xml
-    #porter mixin install kustomize --url https://github.com/donmstewart/porter-kustomize/releases/download --version 0.2-beta-4
   fi
-  #if !(command -v kustomize >/dev/null); then
-    #echo "\n---------- Installing Kustomize ----------\n"
-    #curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
-  #fi
   popd
 }
 
@@ -169,7 +162,6 @@ checkForExternalIP() {
 
 function loadOperator() {
   echo "\n---------- Generating Porter Credentials ----------\n"
-  #porter credentials generate --tag kinetica/kinetica-k8s-operator:v0.3
   TIMESTAMP=$(date -u +%Y-%m-%dT%T.%NZ)
   mkdir -p /root/.porter/credentials/
   touch /root/.porter/credentials/kinetica-k8s-operator.json
@@ -190,7 +182,7 @@ function loadOperator() {
 EOF
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator -t kinetica/kinetica-k8s-operator:v0.2.2 --param environment=aks
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:v0.2.2 --param environment=aks
   echo "\n---------- Waiiting for Ingress to be available --\n"
   checkForExternalIP
 }
@@ -232,11 +224,11 @@ spec:
       containerPort: 9300
     resources:
       limits:
-        cpu: "1.5"
-        memory: "4Gi"
+        cpu: "5"
+        memory: "100Gi"
       requests:
-        cpu: "1"
-        memory: "2Gi"
+        cpu: "4.5"
+        memory: "50Gi"
   gadmin:
     isEnabled: true
     containerPort:
@@ -368,4 +360,3 @@ loadOperator
 deployKineticaCluster
 
 checkForClusterReadiness
-
