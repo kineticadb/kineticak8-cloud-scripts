@@ -167,6 +167,7 @@ function loadOperator() {
   touch /root/.porter/credentials/kinetica-k8s-operator.json
   cat <<EOF | tee /root/.porter/credentials/kinetica-k8s-operator.json
 {
+  "schemaVersion": "1.0.0-DRAFT+b6c701f",
   "name": "kinetica-k8s-operator",
   "created": "$TIMESTAMP",
   "modified": "$TIMESTAMP",
