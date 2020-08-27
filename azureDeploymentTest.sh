@@ -93,8 +93,7 @@ function preflightOperator() {
   if !(command -v porter >/dev/null); then
     echo "\n---------- Installing Porter ----------\n"
     pushd /usr/local/bin/
-    #curl https://cdn.porter.sh/latest/install-linux.sh | bash
-    curl https://cdn.porter.sh/v0.27.2/install-linux.sh | bash
+    curl https://cdn.porter.sh/latest/install-linux.sh | bash
     ln -s ~/.porter/porter /usr/local/bin/porter 
     ln -s ~/.porter/porter-runtime /usr/local/bin/porter-runtime
   fi
@@ -168,6 +167,7 @@ function loadOperator() {
   touch /root/.porter/credentials/kinetica-k8s-operator.json
   cat <<EOF | tee /root/.porter/credentials/kinetica-k8s-operator.json
 {
+  "schemaVersion": "1.0.0-DRAFT+b6c701f",
   "name": "kinetica-k8s-operator",
   "created": "$TIMESTAMP",
   "modified": "$TIMESTAMP",
@@ -244,6 +244,10 @@ spec:
       containerPort: 8088
 EOF
 
+}
+
+deployMonitoring() {
+  az aks enable-addons -a monitoring -n "$resource_group" -g "$resource_group"
 }
 
 checkForClusterReadiness() {
@@ -359,5 +363,7 @@ fi
 loadOperator
 
 deployKineticaCluster
+
+deployMonitoring
 
 checkForClusterReadiness
