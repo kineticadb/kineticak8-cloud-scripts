@@ -370,6 +370,6 @@ loadOperator
 
 deployKineticaCluster
 
-deployMonitoring
+#deployMonitoring
 
 checkForClusterReadiness
