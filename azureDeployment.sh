@@ -94,7 +94,7 @@ function preflightOperator() {
   if !(command -v porter >/dev/null); then
     echo "\n---------- Installing Porter ----------\n"
     pushd /usr/local/bin/
-    curl https://cdn.porter.sh/latest/install-linux.sh | bash
+    curl https://cdn.porter.sh/v0.27.2/install-linux.sh | bash
     ln -s ~/.porter/porter /usr/local/bin/porter 
     ln -s ~/.porter/porter-runtime /usr/local/bin/porter-runtime
   fi
