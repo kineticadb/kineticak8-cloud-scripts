@@ -183,7 +183,7 @@ function loadOperator() {
 EOF
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:v0.2.3 --param environment=aks
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:v0.2.4 --param environment=aks
   echo "\n---------- Waiiting for Ingress to be available --\n"
   checkForExternalIP
 }
