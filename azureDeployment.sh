@@ -29,6 +29,7 @@ Arguments
   --ranks|-rnk                        : The number of ranks to create
   --rank_storage|-rnkst               : The amount of disk space needed per rank
   --deployment_type|-dt               : Whether the AKS cluster uses CPU's or GPU's
+  --operator_version|-ov              : The version of the Kinetica-K8s-Operator image to use
 EOF
 }
 
@@ -183,7 +184,7 @@ function loadOperator() {
 EOF
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:v0.2.2 --param environment=aks
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
   echo "\n---------- Waiiting for Ingress to be available --\n"
   checkForExternalIP
 }
@@ -323,6 +324,10 @@ do
       deployment_type="$1"
       shift
       ;;
+    --operator_version|-ov)
+      operator_version="$1"
+      shift
+      ;;
     --help|-help|-h)
       print_usage
       exit 13
@@ -343,6 +348,7 @@ throw_if_empty --kcluster_name "$kcluster_name"
 throw_if_empty --ranks "$ranks"
 throw_if_empty --rank_storage "$rank_storage"
 throw_if_empty --deployment_type "$deployment_type"
+throw_if_empty --operator_version "$operator_version"
 
 if [ "$auth_type" = "sp" ]; then
   throw_if_empty --client_id "$client_id"
