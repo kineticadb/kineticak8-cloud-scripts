@@ -30,7 +30,6 @@ Arguments
   --rank_storage|-rnkst               : The amount of disk space needed per rank
   --deployment_type|-dt               : Whether the AKS cluster uses CPU's or GPU's
   --aks_infra_rg|-airg                : The custom RG name for the AKS backend
-  --scaleset_prefix|-sspre            : The prefix to scaleset group names
   --id_resource_id|-idrn              : The Azure Resource ID of the managed identity that will be added to the scalesets
   --operator_version|-ov              : The version of the Kinetica-K8s-Operator image to use
 EOF
@@ -66,8 +65,10 @@ function azureCliInstall() {
   az aks get-credentials --resource-group "${resource_group}" --name "${aks_name}"
 
   ## Add managed identity to scalesets
-  #az vmss identity assign -g "$aks_infra_rg" -n gpudb"$scaleset_prefix" --identities "$id_resource_id"
-  #az vmss identity assign -g "$aks_infra_rg" -n infra"$scaleset_prefix" --identities "$id_resource_id"
+
+  for ssname in $(az vmss list --resource-group "$aks_infra_rg" --query "[].name" --output tsv); do
+    az vmss identity assign -g "$aks_infra_rg" -n "$ssname" --identities "$id_resource_id"
+  done
 }
 
 function installKubectl() {
@@ -339,10 +340,6 @@ do
       operator_version="$1"
       shift
       ;;
-    --scaleset_prefix|-sspre)
-      scaleset_prefix="$1"
-      shift
-      ;;
     --id_resource_id|-idrn)
       id_resource_id="$1"
       shift
@@ -369,7 +366,6 @@ throw_if_empty --rank_storage "$rank_storage"
 throw_if_empty --deployment_type "$deployment_type"
 throw_if_empty --operator_version "$operator_version"
 throw_if_empty --aks_infra_rg "$aks_infra_rg"
-throw_if_empty --scaleset_prefix "$scaleset_prefix"
 throw_if_empty --id_resource_id "$id_resource_id"
 
 if [ "$auth_type" = "sp" ]; then
@@ -392,6 +388,6 @@ loadOperator
 
 deployKineticaCluster
 
-#deployMonitoring
+deployMonitoring
 
 checkForClusterReadiness
