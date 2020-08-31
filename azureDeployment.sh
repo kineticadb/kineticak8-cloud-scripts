@@ -170,7 +170,7 @@ function checkForExternalIP() {
     ((count++))
     if [ "$count" -eq "$attempts" ]; then
       echo "ERROR: Timeout reached while waiting for IP address to be provisioned, please review deployment for any possible issues, or contact technical support for assistance"
-      exit(1)
+      exit 1
     fi 
     sleep 10
   done
