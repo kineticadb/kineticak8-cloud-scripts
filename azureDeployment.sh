@@ -31,6 +31,7 @@ Arguments
   --deployment_type|-dt               : Whether the AKS cluster uses CPU's or GPU's
   --aks_infra_rg|-airg                : The custom RG name for the AKS backend
   --scaleset_prefix|-sspre            : The prefix to scaleset group names
+  --id_resource_id|-idrn              : The Azure Resource ID of the managed identity that will be added to the scalesets
   --operator_version|-ov              : The version of the Kinetica-K8s-Operator image to use
 EOF
 }
@@ -342,6 +343,10 @@ do
       scaleset_prefix="$1"
       shift
       ;;
+    --id_resource_id|-idrn)
+      id_resource_id="$1"
+      shift
+      ;;
     --help|-help|-h)
       print_usage
       exit 13
@@ -365,6 +370,7 @@ throw_if_empty --deployment_type "$deployment_type"
 throw_if_empty --operator_version "$operator_version"
 throw_if_empty --aks_infra_rg "$aks_infra_rg"
 throw_if_empty --scaleset_prefix "$scaleset_prefix"
+throw_if_empty --id_resource_id "$id_resource_id"
 
 if [ "$auth_type" = "sp" ]; then
   throw_if_empty --client_id "$client_id"
