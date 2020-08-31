@@ -163,8 +163,15 @@ EOF
 
 function checkForExternalIP() {
   # Wait for service to be up:
+  count=0
+  attempts=60
   while [[ "$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
     echo "waiting for ip to be ready"
+    ((count++))
+    if [ "$count" -eq "$attempts" ]; then
+      echo "ERROR: Timeout reached while waiting for IP address to be provisioned, please review deployment for any possible issues, or contact technical support for assistance"
+      exit(1)
+    fi 
     sleep 10
   done
 }
@@ -261,8 +268,15 @@ function deployMonitoring() {
 
 function checkForClusterReadiness() {
   # Wait for pods to be in ready state:
+  count=0
+  attempts=360
   while [[ "$(kubectl -n gpudb get pods -l app=gpudb -o jsonpath='{..status.conditions[?(@.type!="Ready")].status}')" == "" ]]; do
     echo "waiting for pods to be up" 
+    ((count++))
+    if [ "$count" -eq "$attempts" ]; then
+      echo "ERROR: Timeout reached while waiting for Kinetica pods to be up, please review status of deployment, or contact technical support for assistance"
+      break
+    fi
     sleep 10
   done
 
@@ -270,8 +284,15 @@ function checkForClusterReadiness() {
   clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
 
   # Make sure gadmin is up
+  count=0
+  attempts=60
   while [[ "$(curl -s -o /dev/null -L -w ''%{http_code}'' "$clusterIP"/gadmin)" != '200' ]]; do
     echo "Waiting for gadmin to be up"
+    ((count++))
+    if [ "$count" -eq "$attempts" ]; then
+      echo "ERROR: Timeout reached while waiting for Gadmin to be up, please review status of deployment, or contact technical support for assistance"
+      break
+    fi
     sleep 10
   done
 }
