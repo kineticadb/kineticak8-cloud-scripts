@@ -66,8 +66,8 @@ function azureCliInstall() {
   az aks get-credentials --resource-group "${resource_group}" --name "${aks_name}"
 
   ## Add managed identity to scalesets
-  az vmss identity assign -g "$aks_infra_rg" -n gpudb"$scaleset_prefix" --identities "$id_resource_id"
-  az vmss identity assign -g "$aks_infra_rg" -n infra"$scaleset_prefix" --identities "$id_resource_id"
+  #az vmss identity assign -g "$aks_infra_rg" -n gpudb"$scaleset_prefix" --identities "$id_resource_id"
+  #az vmss identity assign -g "$aks_infra_rg" -n infra"$scaleset_prefix" --identities "$id_resource_id"
 }
 
 function installKubectl() {
