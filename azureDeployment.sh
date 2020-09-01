@@ -1,12 +1,11 @@
 #!/bin/bash
 
 set -o errexit
-set -x
-
 readonly LOG_FILE="/var/log/kineticak8_az_deployment.log"
 sudo touch $LOG_FILE
 exec 1> >(tee -a $LOG_FILE)
 exec 2>&1 
+set -x
 
 export KUBECONFIG=/root/.kube/config
 
@@ -167,13 +166,16 @@ function checkForExternalIP() {
   attempts=60
   while [[ "$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
     echo "waiting for ip to be ready"
-    ((count++))
+    count=$((count+1))
     if [ "$count" -eq "$attempts" ]; then
       echo "ERROR: Timeout reached while waiting for IP address to be provisioned, please review deployment for any possible issues, or contact technical support for assistance"
       exit 1
     fi 
     sleep 10
   done
+  # Get external IP Address:
+  clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
+  echo "$clusterIP" > /dev/tty
 }
 
 function loadOperator() {
@@ -266,29 +268,28 @@ function deployMonitoring() {
   az aks enable-addons -a monitoring -n "$resource_group" -g "$resource_group"
 }
 
-function checkForClusterReadiness() {
+function checkForKineticaRanksReadiness() {
   # Wait for pods to be in ready state:
   count=0
   attempts=360
-  while [[ "$(kubectl -n gpudb get pods -l app=gpudb -o jsonpath='{..status.conditions[?(@.type!="Ready")].status}')" == "" ]]; do
+  while [[ "$(kubectl -n gpudb get sts -o jsonpath='{.items[*].status.readyReplicas}')" != "$ranks" ]]; do
     echo "waiting for pods to be up" 
-    ((count++))
+    count=$((count+1))
     if [ "$count" -eq "$attempts" ]; then
       echo "ERROR: Timeout reached while waiting for Kinetica pods to be up, please review status of deployment, or contact technical support for assistance"
       break
     fi
     sleep 10
   done
+}
 
-  # Get external IP Address:
-  clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
-
+function checkForGadmin() {
   # Make sure gadmin is up
   count=0
-  attempts=60
+  attempts=10
   while [[ "$(curl -s -o /dev/null -L -w ''%{http_code}'' "$clusterIP"/gadmin)" != '200' ]]; do
     echo "Waiting for gadmin to be up"
-    ((count++))
+    count=$((count+1))
     if [ "$count" -eq "$attempts" ]; then
       echo "ERROR: Timeout reached while waiting for Gadmin to be up, please review status of deployment, or contact technical support for assistance"
       break
@@ -411,4 +412,6 @@ deployKineticaCluster
 
 #deployMonitoring
 
-checkForClusterReadiness
+checkForKineticaRanksReadiness
+
+#checkForGadmin
