@@ -3,9 +3,11 @@
 set -o errexit
 readonly LOG_FILE="/var/log/kineticak8_az_deployment.log"
 sudo touch $LOG_FILE
-exec 1> >(tee -a $LOG_FILE)
-exec 2>&1 
+exec 2> >(tee -a $LOG_FILE)
+exec 19>&2
+export BASH_XTRACEFD="19"
 set -x
+
 
 export KUBECONFIG=/root/.kube/config
 
@@ -175,7 +177,7 @@ function checkForExternalIP() {
   done
   # Get external IP Address:
   clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
-  #echo "$clusterIP" > /dev/tty
+  echo "$clusterIP"
 }
 
 function loadOperator() {
