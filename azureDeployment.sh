@@ -266,6 +266,7 @@ spec:
       containerPort: 8088
 EOF
 
+  setSecrets
 }
 
 function deployMonitoring() {
@@ -300,6 +301,11 @@ function checkForGadmin() {
     fi
     sleep 10
   done
+}
+
+function setSecrets() {
+  kubectl -n gpudb create secret generic managed-id --from-literal=resourceid="$id_resource_id"
+  kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$id_resource_id"
 }
 
 #---------------------------------------------------------------------------------
