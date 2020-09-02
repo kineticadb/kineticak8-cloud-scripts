@@ -3,7 +3,8 @@
 set -o errexit
 readonly LOG_FILE="/var/log/kineticak8_az_deployment.log"
 sudo touch $LOG_FILE
-exec 1> >(tee -a $LOG_FILE)
+#exec 1> >(tee -a $LOG_FILE)
+exec 1> $LOG_FILE
 exec 2>&1
 exec 19>&1
 export BASH_XTRACEFD="19"
