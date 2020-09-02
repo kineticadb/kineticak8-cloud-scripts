@@ -415,6 +415,6 @@ deployKineticaCluster
 
 #deployMonitoring
 
-checkForKineticaRanksReadiness
+#checkForKineticaRanksReadiness
 
 #checkForGadmin
