@@ -178,7 +178,7 @@ function checkForExternalIP() {
   done
   # Get external IP Address:
   clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
-  echo "$clusterIP"
+  echo "$clusterIP" > /opt/ipaddr
 }
 
 function loadOperator() {
