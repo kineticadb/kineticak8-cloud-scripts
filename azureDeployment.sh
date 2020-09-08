@@ -269,14 +269,10 @@ EOF
   setSecrets
 }
 
-function deployMonitoring() {
-  az aks enable-addons -a monitoring -n "$resource_group" -g "$resource_group"
-}
-
 function checkForKineticaRanksReadiness() {
   # Wait for pods to be in ready state:
   count=0
-  attempts=360
+  attempts=20
   while [[ "$(kubectl -n gpudb get sts -o jsonpath='{.items[*].status.readyReplicas}')" != "$ranks" ]]; do
     echo "waiting for pods to be up" 
     count=$((count+1))
@@ -420,8 +416,6 @@ loadOperator
 
 deployKineticaCluster
 
-#deployMonitoring
+checkForKineticaRanksReadiness
 
-#checkForKineticaRanksReadiness
-
-#checkForGadmin
+checkForGadmin
