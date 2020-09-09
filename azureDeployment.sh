@@ -225,7 +225,7 @@ spec:
     rpcAddress: "rpc://127.0.0.1:7373"
   hostManagerMonitor:
     livenessProbe:
-      failureThreshold: 10
+      failureThreshold: 20
   ingressController: nginx
   gpudbCluster:
     license: "$license_key"
