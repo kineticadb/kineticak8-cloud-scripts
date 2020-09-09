@@ -231,6 +231,10 @@ spec:
     license: "$license_key"
     image: kinetica/kinetica-k8s-intel:v0.2
     clusterName: "$kcluster_name"
+    # For operators higher than 2.4
+    hasPools: true
+    hasRankPerNode: true
+    #
     replicas: $ranks
     rankStorageSize: "$rank_storage"
     persistTier:
