@@ -276,7 +276,7 @@ EOF
 function checkForKineticaRanksReadiness() {
   # Wait for pods to be in ready state:
   count=0
-  attempts=20
+  attempts=40
   while [[ "$(kubectl -n gpudb get sts -o jsonpath='{.items[*].status.readyReplicas}')" != "$ranks" ]]; do
     echo "waiting for pods to be up" 
     count=$((count+1))
