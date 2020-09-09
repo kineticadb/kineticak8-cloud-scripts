@@ -227,6 +227,7 @@ spec:
     livenessProbe:
       failureThreshold: 20
   ingressController: nginx
+  podManagementPolicy: Parallel
   gpudbCluster:
     license: "$license_key"
     image: kinetica/kinetica-k8s-intel:v0.2
