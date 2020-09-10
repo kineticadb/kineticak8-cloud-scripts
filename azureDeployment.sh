@@ -22,22 +22,20 @@ Auto Loads AKS cluster with kinetica operator (login and cli are disabled)
 Command
   $0
 Arguments
-  --aks_name|-an                      : The name of the AKS cluster to connect to
-  --auth_type|-at                     : Whether the identity is Managed or SP(Service Principal)
-  --client_id|-clid                   : The service principal ID.
-  --client_secret|-clis               : The service principal secret.
-  --subscription_id|-subid            : The subscription ID of the SP.
-  --tenant_id|-tid                    : The tenant id of the SP.
-  --resource_group|-rg                : The resource group name.
-  --kcluster_name|-kcn                : The Kinetica cluster resource name for identification in Kubernetes
-  --license_key|-lk                   : The Kinetica Service license key
-  --ranks|-rnk                        : The number of ranks to create
-  --rank_storage|-rnkst               : The amount of disk space needed per rank
-  --deployment_type|-dt               : Whether the AKS cluster uses CPU's or GPU's
-  --aks_infra_rg|-airg                : The custom RG name for the AKS backend
-  --id_resource_id|-idrn              : The Azure Resource ID of the managed identity that will be added to the scalesets
-  --id_client_id|-idcid               : The Azure Client ID of the managed identity that will be added to the pod identity
-  --operator_version|-ov              : The version of the Kinetica-K8s-Operator image to use
+  --aks_name                          : The name of the AKS cluster to connect to
+  --subscription_id                   : The subscription ID of the SP.
+  --resource_group                    : The resource group name.
+  --kcluster_name                     : The Kinetica cluster resource name for identification in Kubernetes
+  --license_key                       : The Kinetica Service license key
+  --ranks                             : The number of ranks to create
+  --rank_storage                      : The amount of disk space needed per rank
+  --deployment_type                   : Whether the AKS cluster uses CPU's or GPU's
+  --aks_infra_rg                      : The custom RG name for the AKS backend
+  --identity_name                     : The Azure Identity Name of the managed identity that will be added to the scalesets
+  --id_client_id                      : The Azure Client ID of the managed identity that will be added to the pod identity
+  --operator_version                  : The version of the Kinetica-K8s-Operator image to use
+  --storage_acc_name                  : The storage account name that will be used by Kinetica
+  --blob_container_name               : The blob container where the backups will be stored
 EOF
 }
 
@@ -61,11 +59,7 @@ function azureCliInstall() {
   echo "\n---------- Installing Az Cli ----------\n"
   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
   
-  if [ "$auth_type" = "sp" ]; then
-    az login --service-principal -u "$client_id" -p "$client_secret" -t "$tenant_id"
-  else  
-    az login --identity
-  fi
+  az login --identity
   
   az account set --subscription "${subscription_id}"
   az aks get-credentials --resource-group "${resource_group}" --name "${aks_name}"
@@ -73,7 +67,7 @@ function azureCliInstall() {
   ## Add managed identity to scalesets
 
   for ssname in $(az vmss list --resource-group "$aks_infra_rg" --query "[].name" --output tsv); do
-    az vmss identity assign -g "$aks_infra_rg" -n "$ssname" --identities "$id_resource_id"
+    az vmss identity assign -g "$aks_infra_rg" -n "$ssname" --identities "$identity_resource_id"
   done
 }
 
@@ -93,7 +87,7 @@ function installVeleroCli() {
     echo "\n---------- Installing Velero Cli ----------\n"
     velero_install_dir="/opt/velero"
     mkdir -p "$velero_install_dir"
-    velero_file="/usr/loca/bin/velero"
+    velero_file="/usr/local/bin/velero"
     curl -L -s -o $velero_install_dir/velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/$veleroVersion/velero-$veleroVersion-linux-amd64.tar.gz
     tar -C $velero_install_dir -zxvf $velero_install_dir/velero.tar.gz
     chmod +x $velero_install_dir/velero-$veleroVersion-linux-amd64/velero
@@ -295,16 +289,15 @@ EOF
 function installPodIdentity() {
   echo "\n---------- Installing Pod Identity Deployment ----------\n"
   kubectl apply -f https://raw.githubusercontent.com/Azure/aad-pod-identity/master/deploy/infra/deployment.yaml
-  identityName=$(echo $id_resource_id | rev | cut -d '/' -f1 | rev)
   echo "\n---------- Creating Identity Object ----------\n"
   cat <<EOF | kubectl create -f -
 apiVersion: "aadpodidentity.k8s.io/v1"
 kind: AzureIdentity
 metadata:
-  name: "$identityName"
+  name: "$identity_name"
 spec:
   type: 0
-  resourceID: "$id_resource_id"
+  resourceID: "$identity_resource_id"
   clientID: $id_client_id
 EOF
   
@@ -313,10 +306,10 @@ EOF
 apiVersion: "aadpodidentity.k8s.io/v1"
 kind: AzureIdentityBinding
 metadata:
-  name: $identityName-binding
+  name: $identity_name-binding
 spec:
-  azureIdentity: $identityName
-  selector: $identityName
+  azureIdentity: $identity_name
+  selector: $identity_name
 EOF
 
 }
@@ -352,8 +345,8 @@ function checkForGadmin() {
 }
 
 function setSecrets() {
-  kubectl -n gpudb create secret generic managed-id --from-literal=resourceid="$id_resource_id"
-  kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$id_resource_id"
+  kubectl -n gpudb create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
+  kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
 }
 
 #---------------------------------------------------------------------------------
@@ -363,69 +356,61 @@ do
   key="$1"
   shift
   case $key in
-    --aks_name|-an)
+    --aks_name)
       aks_name="$1"
       shift
       ;;
-    --auth_type|-at)
-      auth_type="$1"
-      shift
-      ;;
-    --client_id|-clid)
-      client_id="$1"
-      shift
-      ;;
-    --client_secret|-clis)
-      client_secret="$1"
-      shift
-      ;;
-    --subscription_id|-subid)
+    --subscription_id)
       subscription_id="$1"
       shift
       ;;
-    --tenant_id|-tid)
-      tenant_id="$1"
-      shift
-      ;;
-    --resource_group|-rg)
+    --resource_group)
       resource_group="$1"
       shift
       ;;
 # Kinetica Cluster details
-    --kcluster_name|-kcn)
+    --kcluster_name)
       kcluster_name="$1"
       shift
       ;;
-    --license_key|-lk)
+    --license_key)
       license_key="$1"
       shift
       ;;
-    --ranks|-rnk)
+    --ranks)
       ranks="$1"
       shift
       ;;
-    --rank_storage|-rkst)
+    --rank_storage)
       rank_storage="$1"
       shift
       ;;
-    --deployment_type|-dt)
+    --deployment_type)
       deployment_type="$1"
       shift
       ;;
-    --aks_infra_rg|-airg)
+    --aks_infra_rg)
       aks_infra_rg="$1"
       shift
       ;;
-    --operator_version|-ov)
+    --operator_version)
       operator_version="$1"
       shift
       ;;
-    --id_resource_id|-idrn)
-      id_resource_id="$1"
+    --identity_name)
+      identity_name="$1"
       shift
       ;;
-    --id_client_id|-idcid)
+    --id_client_id)
       id_client_id="$1"
+      shift
+      ;;
+    --storage_acc_name)
+      storage_acc_name="$1"
+      shift
+      ;;
+    --blob_container_name)
+      blob_container_name="$1"
       shift
       ;;
     --help|-help|-h)
@@ -450,14 +435,12 @@ throw_if_empty --rank_storage "$rank_storage"
 throw_if_empty --deployment_type "$deployment_type"
 throw_if_empty --operator_version "$operator_version"
 throw_if_empty --aks_infra_rg "$aks_infra_rg"
-throw_if_empty --id_resource_id "$id_resource_id"
+throw_if_empty --identity_name "$identity_name"
 throw_if_empty --id_client_id "$id_client_id"
+throw_if_empty --storage_acc_name "$storage_acc_name"
+throw_if_empty --blob_container_name "$blob_container_name"
 
-if [ "$auth_type" = "sp" ]; then
-  throw_if_empty --client_id "$client_id"
-  throw_if_empty --client_secret "$client_secret"
-  throw_if_empty --tenant_id "$tenant_id"
-fi
+identity_resource_id="subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
 
 azureCliInstall
 
@@ -472,6 +455,14 @@ fi
 ## Backup pre-flight
 installPodIdentity
 installVeleroCli
+cat <<EOF > /opt/secrets
+AZURE_SUBSCRIPTION_ID="$subscription_id"
+AZURE_RESOURCE_GROUP="$aks_infra_rg"
+AZURE_CLOUD_NAME=AzurePublicCloud
+AZURE_BACKUP_RESOURCE_GROUP="$resource_group"
+AZURE_STORAGE_ACCOUNT_ID="$storage_acc_name"
+AZURE_BLOB_CONTAINER="$blob_container_name"
+EOF
 
 loadOperator
 
