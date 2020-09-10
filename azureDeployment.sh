@@ -94,6 +94,15 @@ function installVeleroCli() {
     ln -s $velero_install_dir/velero-$veleroVersion-linux-amd64/velero $velero_file
   
   fi
+  echo "\n---------- Config Velero Cli ----------\n"
+  cat <<EOF > ./credentials-velero
+AZURE_SUBSCRIPTION_ID=$subscription_id
+AZURE_RESOURCE_GROUP=$aks_infra_rg
+AZURE_CLOUD_NAME=AzurePublicCloud
+EOF
+
+  velero install --provider azure --plugins velero/velero-plugin-for-microsoft-azure:main --bucket $blob_container_name --secret-file ./credentials-velero --backup-location-config resourceGroup=$resource_group,storageAccount=$storage_acc_name,subscriptionId=$subscription_id --snapshot-location-config apiTimeout=10m,resourceGroup=$resource_group,subscriptionId=$subscription_id
+
 }
 
 function checkKubeReady() {
@@ -454,13 +463,14 @@ fi
 ## Backup pre-flight
 installPodIdentity
 installVeleroCli
-cat <<EOF > /opt/secrets
+cat <<EOF > /opt/info
 AZURE_SUBSCRIPTION_ID="$subscription_id"
 AZURE_RESOURCE_GROUP="$aks_infra_rg"
 AZURE_CLOUD_NAME=AzurePublicCloud
 AZURE_BACKUP_RESOURCE_GROUP="$resource_group"
 AZURE_STORAGE_ACCOUNT_ID="$storage_acc_name"
 AZURE_BLOB_CONTAINER="$blob_container_name"
+AZURE_IDENTITY_NAME="$identity_name"
 EOF
 
 loadOperator
