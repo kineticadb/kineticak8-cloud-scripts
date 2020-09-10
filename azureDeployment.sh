@@ -439,7 +439,7 @@ throw_if_empty --id_client_id "$id_client_id"
 throw_if_empty --storage_acc_name "$storage_acc_name"
 throw_if_empty --blob_container_name "$blob_container_name"
 
-identity_resource_id="subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
+identity_resource_id="/subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
 
 azureCliInstall
 
