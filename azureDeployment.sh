@@ -426,7 +426,6 @@ done
 #---------------------------------------------------------------------------------
 
 throw_if_empty --aks_name "$aks_name"
-throw_if_empty --auth_type "$auth_type"
 throw_if_empty --subscription_id "$subscription_id"
 throw_if_empty --resource_group "$resource_group"
 throw_if_empty --kcluster_name "$kcluster_name"
