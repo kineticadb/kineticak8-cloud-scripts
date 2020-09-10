@@ -10,8 +10,10 @@ exec 19>&1
 export BASH_XTRACEFD="19"
 set -x
 
-
+####__________________________________
 export KUBECONFIG=/root/.kube/config
+veleroVersion=v1.4.2
+
 
 echo $@
 function print_usage() {
@@ -83,6 +85,21 @@ function installKubectl() {
     chmod +x $kubectl_file
   fi
   checkKubeReady
+}
+
+function installVeleroCli() {
+  if !(command -v velero >/dev/null); then
+
+    echo "\n---------- Installing Velero Cli ----------\n"
+    velero_install_dir="/opt/velero"
+    mkdir -p "$velero_install_dir"
+    velero_file="/usr/loca/bin/velero"
+    curl -L -s -o $velero_install_dir/velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/$veleroVersion/velero-$veleroVersion-linux-amd64.tar.gz
+    tar -C $velero_install_dir -zxvf $velero_install_dir/velero.tar.gz
+    chmod +x $velero_install_dir/velero-$veleroVersion-linux-amd64/velero
+    ln -s $velero_install_dir/velero-$veleroVersion-linux-amd64/velero $velero_file
+  
+  fi
 }
 
 function checkKubeReady() {
@@ -452,7 +469,9 @@ if [ "$deployment_type" = "gpu" ]; then
   gpuSetup
 fi
 
+## Backup pre-flight
 installPodIdentity
+installVeleroCli
 
 loadOperator
 
