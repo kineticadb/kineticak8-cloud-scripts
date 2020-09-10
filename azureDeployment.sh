@@ -275,9 +275,34 @@ EOF
   setSecrets
 }
 
-#function installPodIdentity() {
-#  kubectl apply -f https://raw.githubusercontent.com/Azure/aad-pod-identity/master/deploy/infra/deployment.yaml
-#}
+function installPodIdentity() {
+  echo "\n---------- Installing Pod Identity Deployment ----------\n"
+  kubectl apply -f https://raw.githubusercontent.com/Azure/aad-pod-identity/master/deploy/infra/deployment.yaml
+  identityName=$(echo $id_resource_id | rev | cut -d '/' -f1 | rev)
+  echo "\n---------- Creating Identity Object ----------\n"
+  cat <<EOF | kubectl create -f -
+apiVersion: "aadpodidentity.k8s.io/v1"
+kind: AzureIdentity
+metadata:
+  name: "$identityName"
+spec:
+  type: 0
+  resourceID: "$id_resource_id"
+  clientID: $id_client_id
+EOF
+  
+  echo "\n---------- Creating Identity Binding ----------\n"
+  cat <<EOF | kubectl create -f -
+apiVersion: "aadpodidentity.k8s.io/v1"
+kind: AzureIdentityBinding
+metadata:
+  name: $identityName-binding
+spec:
+  azureIdentity: $identityName
+  selector: $identityName
+EOF
+
+}
 
 function checkForKineticaRanksReadiness() {
   # Wait for pods to be in ready state:
