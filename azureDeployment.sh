@@ -34,6 +34,7 @@ Arguments
   --deployment_type|-dt               : Whether the AKS cluster uses CPU's or GPU's
   --aks_infra_rg|-airg                : The custom RG name for the AKS backend
   --id_resource_id|-idrn              : The Azure Resource ID of the managed identity that will be added to the scalesets
+  --id_client_id|-idcid               : The Azure Client ID of the managed identity that will be added to the pod identity
   --operator_version|-ov              : The version of the Kinetica-K8s-Operator image to use
 EOF
 }
@@ -274,6 +275,10 @@ EOF
   setSecrets
 }
 
+#function installPodIdentity() {
+#  kubectl apply -f https://raw.githubusercontent.com/Azure/aad-pod-identity/master/deploy/infra/deployment.yaml
+#}
+
 function checkForKineticaRanksReadiness() {
   # Wait for pods to be in ready state:
   count=0
@@ -377,6 +382,10 @@ do
       id_resource_id="$1"
       shift
       ;;
+    --id_client_id|-idcid)
+      id_client_id="$1"
+      shift
+      ;;
     --help|-help|-h)
       print_usage
       exit 13
@@ -400,6 +409,7 @@ throw_if_empty --deployment_type "$deployment_type"
 throw_if_empty --operator_version "$operator_version"
 throw_if_empty --aks_infra_rg "$aks_infra_rg"
 throw_if_empty --id_resource_id "$id_resource_id"
+throw_if_empty --id_client_id "$id_client_id"
 
 if [ "$auth_type" = "sp" ]; then
   throw_if_empty --client_id "$client_id"
