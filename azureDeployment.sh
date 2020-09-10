@@ -456,6 +456,6 @@ loadOperator
 
 deployKineticaCluster
 
-checkForKineticaRanksReadiness
+#checkForKineticaRanksReadiness
 
-checkForGadmin
+#checkForGadmin
