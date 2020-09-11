@@ -81,30 +81,6 @@ function installKubectl() {
   checkKubeReady
 }
 
-function installVeleroCli() {
-  if !(command -v velero >/dev/null); then
-
-    echo "\n---------- Installing Velero Cli ----------\n"
-    velero_install_dir="/opt/velero"
-    mkdir -p "$velero_install_dir"
-    velero_file="/usr/local/bin/velero"
-    curl -L -s -o $velero_install_dir/velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/$veleroVersion/velero-$veleroVersion-linux-amd64.tar.gz
-    tar -C $velero_install_dir -zxvf $velero_install_dir/velero.tar.gz
-    chmod +x $velero_install_dir/velero-$veleroVersion-linux-amd64/velero
-    ln -s $velero_install_dir/velero-$veleroVersion-linux-amd64/velero $velero_file
-  
-  fi
-  echo "\n---------- Config Velero Cli ----------\n"
-  cat <<EOF > ./credentials-velero
-AZURE_SUBSCRIPTION_ID=$subscription_id
-AZURE_RESOURCE_GROUP=$aks_infra_rg
-AZURE_CLOUD_NAME=AzurePublicCloud
-EOF
-
-  velero install --provider azure --plugins velero/velero-plugin-for-microsoft-azure:main --bucket $blob_container_name --secret-file ./credentials-velero --backup-location-config resourceGroup=$resource_group,storageAccount=$storage_acc_name,subscriptionId=$subscription_id --snapshot-location-config apiTimeout=10m,resourceGroup=$resource_group,subscriptionId=$subscription_id
-
-}
-
 function checkKubeReady() {
   for i in `seq 0 10`; do
     if kubectl get nodes; then
@@ -296,6 +272,23 @@ EOF
 }
 
 function installPodIdentity() {
+  echo "\n---------- ENV ----------\n"
+  cat <<EOF > /opt/info.sh
+#!/bin/bash
+export AZURE_SUBSCRIPTION_ID=$subscription_id
+export AZURE_RESOURCE_GROUP=$aks_infra_rg
+export AZURE_CLOUD_NAME=AzurePublicCloud
+export AZURE_BACKUP_RESOURCE_GROUP=$resource_group
+export AZURE_STORAGE_ACCOUNT_ID=$storage_acc_name
+export AZURE_BLOB_CONTAINER=$blob_container_name
+export AZURE_IDENTITY_NAME=$identity_name
+export AZURE_IDENTITY_RESOURCE_ID=$identity_resource_id
+export AZURE_IDENTITY_CLIENT_ID=$id_client_id
+EOF
+  
+  chmod +x /opt/info.sh
+  source /opt/info.sh
+  
   echo "\n---------- Installing Pod Identity Deployment ----------\n"
   kubectl apply -f https://raw.githubusercontent.com/Azure/aad-pod-identity/master/deploy/infra/deployment.yaml
   echo "\n---------- Creating Identity Object ----------\n"
@@ -303,11 +296,11 @@ function installPodIdentity() {
 apiVersion: "aadpodidentity.k8s.io/v1"
 kind: AzureIdentity
 metadata:
-  name: "$identity_name"
+  name: $AZURE_IDENTITY_NAME
 spec:
   type: 0
-  resourceID: "$identity_resource_id"
-  clientID: $id_client_id
+  resourceID: $AZURE_IDENTITY_RESOURCE_ID
+  clientID: $AZURE_IDENTITY_CLIENT_ID
 EOF
   
   echo "\n---------- Creating Identity Binding ----------\n"
@@ -315,12 +308,48 @@ EOF
 apiVersion: "aadpodidentity.k8s.io/v1"
 kind: AzureIdentityBinding
 metadata:
-  name: $identity_name-binding
+  name: $AZURE_IDENTITY_NAME-binding
 spec:
-  azureIdentity: $identity_name
-  selector: $identity_name
+  azureIdentity: $AZURE_IDENTITY_NAME
+  selector: $AZURE_IDENTITY_NAME
 EOF
 
+}
+
+function installVeleroCli() {
+  if !(command -v velero >/dev/null); then
+
+    echo "\n---------- Installing Velero Cli ----------\n"
+    velero_install_dir="/opt/velero"
+    mkdir -p "$velero_install_dir"
+    velero_file="/usr/local/bin/velero"
+    curl -L -s -o $velero_install_dir/velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/$veleroVersion/velero-$veleroVersion-linux-amd64.tar.gz
+    tar -C $velero_install_dir -zxvf $velero_install_dir/velero.tar.gz
+    chmod +x $velero_install_dir/velero-$veleroVersion-linux-amd64/velero
+    ln -s $velero_install_dir/velero-$veleroVersion-linux-amd64/velero $velero_file
+  
+  fi
+  echo "\n---------- Config Velero Cli ----------\n"
+  cat <<EOF > ./credentials-velero
+AZURE_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
+AZURE_RESOURCE_GROUP=${AZURE_RESOURCE_GROUP}
+AZURE_CLOUD_NAME=${AZURE_CLOUD_NAME}
+EOF
+
+  velero install \
+  --provider azure \
+  --plugins velero/velero-plugin-for-microsoft-azure:main \
+  --bucket $AZURE_BLOB_CONTAINER \
+  --secret-file ./credentials-velero \
+  --backup-location-config resourceGroup=$AZURE_BACKUP_RESOURCE_GROUP,storageAccount=$AZURE_STORAGE_ACCOUNT_ID,subscriptionId=$AZURE_SUBSCRIPTION_ID \
+  --snapshot-location-config apiTimeout=10m,resourceGroup=$AZURE_BACKUP_RESOURCE_GROUP,subscriptionId=$AZURE_SUBSCRIPTION_ID \
+  --velero-pod-cpu-request 1 \
+  --velero-pod-mem-request 5Gi \
+  --velero-pod-cpu-limit 2 \
+  --velero-pod-mem-limit 7Gi
+
+  kubectl patch deployment velero -n velero --patch \
+  '{"spec":{"template":{"metadata":{"labels":{"aadpodidbinding":"'$AZURE_IDENTITY_NAME'"}}}}}'
 }
 
 function checkForKineticaRanksReadiness() {
@@ -461,23 +490,13 @@ if [ "$deployment_type" = "gpu" ]; then
 fi
 
 ## Backup pre-flight
-#installPodIdentity   # troubleshooting
-#installVeleroCli
-cat <<EOF > /opt/info
-AZURE_SUBSCRIPTION_ID="$subscription_id"
-AZURE_RESOURCE_GROUP="$aks_infra_rg"
-AZURE_CLOUD_NAME=AzurePublicCloud
-AZURE_BACKUP_RESOURCE_GROUP="$resource_group"
-AZURE_STORAGE_ACCOUNT_ID="$storage_acc_name"
-AZURE_BLOB_CONTAINER="$blob_container_name"
-AZURE_IDENTITY_NAME="$identity_name"
-AZURE_IDENTITY_RESOURCE_ID="$identity_resource_id"
-AZURE_IDENTITY_CLIENT_ID="$id_client_id"
-EOF
+installPodIdentity 
+
+installVeleroCli
 
 loadOperator
 
-#deployKineticaCluster   # END Troubleshooting
+deployKineticaCluster
 
 #checkForKineticaRanksReadiness
 
