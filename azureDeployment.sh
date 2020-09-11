@@ -461,9 +461,9 @@ if [ "$deployment_type" = "gpu" ]; then
 fi
 
 ## Backup pre-flight
-#installPodIdentity
+#installPodIdentity   # troubleshooting
 #installVeleroCli
-cat <<EOF > /opt/info
+cat <<EOF > /opt/secrets
 AZURE_SUBSCRIPTION_ID="$subscription_id"
 AZURE_RESOURCE_GROUP="$aks_infra_rg"
 AZURE_CLOUD_NAME=AzurePublicCloud
@@ -471,13 +471,11 @@ AZURE_BACKUP_RESOURCE_GROUP="$resource_group"
 AZURE_STORAGE_ACCOUNT_ID="$storage_acc_name"
 AZURE_BLOB_CONTAINER="$blob_container_name"
 AZURE_IDENTITY_NAME="$identity_name"
-AZURE_IDENTITY_RESOURCE_ID="$identity_resource_id"
-AZURE_IDENTITY_CLIENT_ID="$id_client_id"
 EOF
 
-loadOperator
+#loadOperator
 
-deployKineticaCluster
+#deployKineticaCluster   # END Troubleshooting
 
 #checkForKineticaRanksReadiness
 
