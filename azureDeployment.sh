@@ -497,6 +497,9 @@ loadOperator
 
 deployKineticaCluster
 
+## Setting up initial backup schedule
+velero schedule create gpudb-backup --schedule "*/10 * * * *" --include-namespaces gpudb
+
 #checkForKineticaRanksReadiness
 
 #checkForGadmin
