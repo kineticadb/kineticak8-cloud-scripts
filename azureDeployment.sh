@@ -277,7 +277,7 @@ function installPodIdentity() {
 #!/bin/bash
 export AZURE_SUBSCRIPTION_ID=$subscription_id
 export AZURE_RESOURCE_GROUP=$aks_infra_rg
-export AZURE_CLOUD_NAME=AzurePublicCloud
+export AZURE_CLOUD_ENV=AzurePublicCloud
 export AZURE_BACKUP_RESOURCE_GROUP=$resource_group
 export AZURE_STORAGE_ACCOUNT_ID=$storage_acc_name
 export AZURE_BLOB_CONTAINER=$blob_container_name
@@ -285,7 +285,6 @@ export AZURE_IDENTITY_NAME=$identity_name
 export AZURE_IDENTITY_RESOURCE_ID=$identity_resource_id
 export AZURE_IDENTITY_CLIENT_ID=$id_client_id
 EOF
-  
   chmod +x /opt/info.sh
   source /opt/info.sh
   
@@ -333,7 +332,7 @@ function installVeleroCli() {
   cat <<EOF > ./credentials-velero
 AZURE_SUBSCRIPTION_ID=${AZURE_SUBSCRIPTION_ID}
 AZURE_RESOURCE_GROUP=${AZURE_RESOURCE_GROUP}
-AZURE_CLOUD_NAME=${AZURE_CLOUD_NAME}
+AZURE_CLOUD_NAME=${AZURE_CLOUD_ENV}
 EOF
 
   velero install \
