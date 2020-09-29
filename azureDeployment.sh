@@ -397,7 +397,7 @@ function loadSSLCerts() {
     curl "$ssl_ca" --output /opt/certs/ca.crt
     kubectl -n nginx create secret generic tls-secret --from-file=tls.crt=/opt/certs/cert.crt --from-file=tls.key=/opt/certs/key.key --from-file=ca.crt=/opt/certs/ca.crt
   else
-    kubectl -n nginx create secret generic tls-secret --from-file=tls.crt=/opt/certs/cert.crt --from-file=tls.key=/opt/certs/key.key --from-file=ca.crt=/opt/certs/ca.crt
+    kubectl -n nginx create secret generic tls-secret
   fi
 }
 
@@ -512,7 +512,7 @@ throw_if_empty --id_client_id "$id_client_id"
 throw_if_empty --storage_acc_name "$storage_acc_name"
 throw_if_empty --blob_container_name "$blob_container_name"
 throw_if_empty --ssl_type "$ssl_type"
-if [ "$ssl_type" == "provided" ]; then
+if [ "$ssl_type" = "provided" ]; then
   throw_if_empty --ssl_cert "$ssl_cert"
   throw_if_empty --ssl_key "$ssl_key"
   throw_if_empty --ssl_ca "$ssl_ca"
