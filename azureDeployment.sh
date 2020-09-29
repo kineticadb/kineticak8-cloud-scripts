@@ -36,6 +36,10 @@ Arguments
   --operator_version                  : The version of the Kinetica-K8s-Operator image to use
   --storage_acc_name                  : The storage account name that will be used by Kinetica
   --blob_container_name               : The blob container where the backups will be stored
+  --ssl_type                          : The type of SSL security to be implemented 'auto' will use let's encrypt, 'provided' will use the cert and key from ssl_cert and ssl_key parameters
+  --ssl_cert                          : The SSL Certificate to be used to secure the ingress controller
+  --ssl_key                           : The corresponding SSL Key to be used to secure the ingress controller
+  --ssl_ca                            : The corresponding SSL CA used to sign the SSL Certificate
 EOF
 }
 
@@ -107,6 +111,9 @@ function preflightOperator() {
     ln -s ~/.porter/porter-runtime /usr/local/bin/porter-runtime
   fi
   popd
+
+  loadSSLCerts
+
 }
 
 function gpuSetup() {
@@ -381,6 +388,19 @@ function checkForGadmin() {
   done
 }
 
+function loadSSLCerts() {
+  kubectl create ns nginx
+  if [ "$ssl_type" == "provided" ]; then
+    mkdir -p /opt/certs
+    curl "$ssl_cert" --output /opt/certs/cert.crt
+    curl "$ssl_key" --output /opt/certs/key.key
+    curl "$ssl_ca" --output /opt/certs/ca.crt
+    kubectl -n nginx create secret generic tls-secret --from-file=tls.crt=/opt/certs/cert.crt --from-file=tls.key=/opt/certs/key.key --from-file=ca.crt=/opt/certs/ca.crt
+  else
+    kubectl -n nginx create secret generic tls-secret --from-file=tls.crt=/opt/certs/cert.crt --from-file=tls.key=/opt/certs/key.key --from-file=ca.crt=/opt/certs/ca.crt
+  fi
+}
+
 function setSecrets() {
   kubectl -n gpudb create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
   kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
@@ -450,6 +470,22 @@ do
       blob_container_name="$1"
       shift
       ;;
+    --ssl_type)
+      ssl_type="$1"
+      shift
+      ;;
+    --ssl_cert)
+      ssl_cert="$1"
+      shift
+      ;;
+    --ssl_key)
+      ssl_key="$1"
+      shift
+      ;;
+    --ssl_ca)
+      ssl_ca="$1"
+      shift
+      ;;
     --help|-help|-h)
       print_usage
       exit 13
@@ -475,6 +511,12 @@ throw_if_empty --identity_name "$identity_name"
 throw_if_empty --id_client_id "$id_client_id"
 throw_if_empty --storage_acc_name "$storage_acc_name"
 throw_if_empty --blob_container_name "$blob_container_name"
+throw_if_empty --ssl_type "$ssl_type"
+if [ "$ssl_type" == "provided" ]; then
+  throw_if_empty --ssl_cert "$ssl_cert"
+  throw_if_empty --ssl_key "$ssl_key"
+  throw_if_empty --ssl_ca "$ssl_ca"
+fi
 
 identity_resource_id="/subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
 
@@ -499,9 +541,9 @@ deployKineticaCluster
 
 ## Setting up default backup schedules
 #weekly retain 30 days
-#velero schedule create default-gpudb-backup-weekly --schedule "@every 168h" --include-namespaces gpudb --ttl 720h0m0s
+velero schedule create default-gpudb-backup-weekly --schedule "@every 168h" --include-namespaces gpudb --ttl 720h0m0s
 #daily retain 8 days
-#velero schedule create default-gpudb-backup-daily --schedule "@every 24h" --include-namespaces gpudb --ttl 192h0m0s
+velero schedule create default-gpudb-backup-daily --schedule "@every 24h" --include-namespaces gpudb --ttl 192h0m0s
 
 #checkForKineticaRanksReadiness
 
