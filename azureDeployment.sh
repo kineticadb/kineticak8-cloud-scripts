@@ -390,7 +390,7 @@ function checkForGadmin() {
 
 function loadSSLCerts() {
   kubectl create ns nginx
-  if [ "$ssl_type" == "provided" ]; then
+  if [ "$ssl_type" = "provided" ]; then
     mkdir -p /opt/certs
     curl "$ssl_cert" --output /opt/certs/cert.crt
     curl "$ssl_key" --output /opt/certs/key.key
