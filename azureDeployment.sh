@@ -229,7 +229,7 @@ spec:
     rpcAddress: "rpc://127.0.0.1:7373"
   hostManagerMonitor:
     livenessProbe:
-      failureThreshold: 20
+      failureThreshold: 30
   ingressController: nginx
   gpudbCluster:
     podManagementPolicy: Parallel
