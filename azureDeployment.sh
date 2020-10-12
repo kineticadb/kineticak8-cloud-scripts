@@ -39,7 +39,6 @@ Arguments
   --ssl_type                          : The type of SSL security to be implemented 'auto' will use let's encrypt, 'provided' will use the cert and key from ssl_cert and ssl_key parameters
   --ssl_cert                          : The SSL Certificate to be used to secure the ingress controller
   --ssl_key                           : The corresponding SSL Key to be used to secure the ingress controller
-  --ssl_ca                            : The corresponding SSL CA used to sign the SSL Certificate
 EOF
 }
 
@@ -394,8 +393,7 @@ function loadSSLCerts() {
     mkdir -p /opt/certs
     curl "$ssl_cert" --output /opt/certs/cert.crt
     curl "$ssl_key" --output /opt/certs/key.key
-    curl "$ssl_ca" --output /opt/certs/ca.crt
-    kubectl -n nginx create secret generic tls-secret --from-file=tls.crt=/opt/certs/cert.crt --from-file=tls.key=/opt/certs/key.key --from-file=ca.crt=/opt/certs/ca.crt
+    kubectl -n nginx create secret generic tls-secret --from-file=tls.crt=/opt/certs/cert.crt --from-file=tls.key=/opt/certs/key.key
   else
     kubectl -n nginx create secret generic tls-secret
   fi
@@ -482,10 +480,6 @@ do
       ssl_key="$1"
       shift
       ;;
-    --ssl_ca)
-      ssl_ca="$1"
-      shift
-      ;;
     --help|-help|-h)
       print_usage
       exit 13
@@ -515,7 +509,6 @@ throw_if_empty --ssl_type "$ssl_type"
 if [ "$ssl_type" = "provided" ]; then
   throw_if_empty --ssl_cert "$ssl_cert"
   throw_if_empty --ssl_key "$ssl_key"
-  throw_if_empty --ssl_ca "$ssl_ca"
 fi
 
 identity_resource_id="/subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
