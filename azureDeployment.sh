@@ -539,15 +539,15 @@ installPodIdentity
 
 installVeleroCli
 
-loadOperator
+#loadOperator
 
-deployKineticaCluster
+#deployKineticaCluster
 
 ## Setting up default backup schedules
 #weekly retain 30 days
-velero schedule create default-gpudb-backup-weekly --schedule "@every 168h" --include-namespaces gpudb --ttl 720h0m0s
+#velero schedule create default-gpudb-backup-weekly --schedule "@every 168h" --include-namespaces gpudb --ttl 720h0m0s
 #daily retain 8 days
-velero schedule create default-gpudb-backup-daily --schedule "@every 24h" --include-namespaces gpudb --ttl 192h0m0s
+#velero schedule create default-gpudb-backup-daily --schedule "@every 24h" --include-namespaces gpudb --ttl 192h0m0s
 
 #checkForKineticaRanksReadiness
 
