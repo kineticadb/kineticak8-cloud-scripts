@@ -552,3 +552,5 @@ installVeleroCli
 #checkForKineticaRanksReadiness
 
 #checkForGadmin
+
+echo "http://0.0.0.0/gadmin" > /opt/ipaddr
