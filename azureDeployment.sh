@@ -39,6 +39,7 @@ Arguments
   --ssl_type                          : The type of SSL security to be implemented 'auto' will use let's encrypt, 'provided' will use the cert and key from ssl_cert and ssl_key parameters
   --ssl_cert                          : The SSL Certificate to be used to secure the ingress controller
   --ssl_key                           : The corresponding SSL Key to be used to secure the ingress controller
+  --dns_label                         : The DNS label that will be provided 
 EOF
 }
 
@@ -208,7 +209,11 @@ function loadOperator() {
 EOF
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
+  #if [ "$ssl_type" = "auto" ]; then
+    #porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param dnslabel="$dns_label"
+  #else
   porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
+  #fi
   echo "\n---------- Waiiting for Ingress to be available --\n"
   checkForExternalIP
 }
@@ -480,6 +485,10 @@ do
       ssl_key="$1"
       shift
       ;;
+    --dns_label)
+      dns_label="$1"
+      shift
+      ;;
     --help|-help|-h)
       print_usage
       exit 13
@@ -509,6 +518,8 @@ throw_if_empty --ssl_type "$ssl_type"
 if [ "$ssl_type" = "provided" ]; then
   throw_if_empty --ssl_cert "$ssl_cert"
   throw_if_empty --ssl_key "$ssl_key"
+else
+  throw_if_empty --dns_label "$dns_label"
 fi
 
 identity_resource_id="/subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
