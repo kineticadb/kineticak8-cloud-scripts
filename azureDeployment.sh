@@ -539,9 +539,9 @@ installPodIdentity
 
 installVeleroCli
 
-#loadOperator
+loadOperator
 
-#deployKineticaCluster
+deployKineticaCluster
 
 ## Setting up default backup schedules
 #weekly retain 30 days
@@ -553,4 +553,4 @@ installVeleroCli
 
 #checkForGadmin
 
-echo "http://0.0.0.0/gadmin" > /opt/ipaddr
+#echo "http://0.0.0.0/gadmin" > /opt/ipaddr
