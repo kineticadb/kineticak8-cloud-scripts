@@ -210,7 +210,7 @@ EOF
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
   if [ "$ssl_type" = "auto" ]; then
-    porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param dnslabel="$dns_label"
+    porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param dns-label="$dns_label"
   else
     porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
   fi
