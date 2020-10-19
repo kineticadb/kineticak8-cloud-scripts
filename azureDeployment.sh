@@ -209,11 +209,11 @@ function loadOperator() {
 EOF
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  #if [ "$ssl_type" = "auto" ]; then
-    #porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param dnslabel="$dns_label"
-  #else
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
-  #fi
+  if [ "$ssl_type" = "auto" ]; then
+    porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param dnslabel="$dns_label"
+  else
+    porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
+  fi
   echo "\n---------- Waiiting for Ingress to be available --\n"
   checkForExternalIP
 }
@@ -545,12 +545,10 @@ deployKineticaCluster
 
 ## Setting up default backup schedules
 #weekly retain 30 days
-#velero schedule create default-gpudb-backup-weekly --schedule "@every 168h" --include-namespaces gpudb --ttl 720h0m0s
+velero schedule create default-gpudb-backup-weekly --schedule "@every 168h" --include-namespaces gpudb --ttl 720h0m0s
 #daily retain 8 days
-#velero schedule create default-gpudb-backup-daily --schedule "@every 24h" --include-namespaces gpudb --ttl 192h0m0s
+velero schedule create default-gpudb-backup-daily --schedule "@every 24h" --include-namespaces gpudb --ttl 192h0m0s
 
 #checkForKineticaRanksReadiness
 
 #checkForGadmin
-
-#echo "http://0.0.0.0/gadmin" > /opt/ipaddr
