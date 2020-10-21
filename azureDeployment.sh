@@ -39,7 +39,9 @@ Arguments
   --ssl_type                          : The type of SSL security to be implemented 'auto' will use let's encrypt, 'provided' will use the cert and key from ssl_cert and ssl_key parameters
   --ssl_cert                          : The SSL Certificate to be used to secure the ingress controller
   --ssl_key                           : The corresponding SSL Key to be used to secure the ingress controller
-  --dns_label                         : The DNS label that will be provided 
+  --dns_label                         : The DNS label that will be provided
+  --aks_vnet_name                     : The AKS Virtual Network Name to create the VPC peering
+  --fw_vnet_name                      : The Firewall Virtual Network Name to create the VPC peering
 EOF
 }
 
@@ -73,6 +75,14 @@ function azureCliInstall() {
   for ssname in $(az vmss list --resource-group "$aks_infra_rg" --query "[].name" --output tsv); do
     az vmss identity assign -g "$aks_infra_rg" -n "$ssname" --identities "$identity_resource_id"
   done
+
+  echo "\n---------- creating peerings ----------\n"
+  aks_vnet_id=$(az network vnet show -n "${aks_vnet_name}" -g ${resource_group} --query "id" -o tsv)
+  fw_vnet_id=$(az network vnet show -n "${fw_vnet_name}" -g ${resource_group} --query "id" -o tsv)
+  
+  
+  az network vnet peering create --name "${aks_vnet_name}"-"${fw_vnet_name}" --resource-group "${resource_group}" --vnet-name "${aks_vnet_name}" --remote-vnet "${fw_vnet_id}" --allow-vnet-access
+  az network vnet peering create --name "${fw_vnet_name}"-"${aks_vnet_name}" --resource-group "${resource_group}" --vnet-name "${fw_vnet_name}" --remote-vnet "${aks_vnet_id}" --allow-vnet-access
 }
 
 function installKubectl() {
@@ -489,6 +499,14 @@ do
       dns_label="$1"
       shift
       ;;
+    --aks_vnet_name)
+      aks_vnet_name="$1"
+      shift
+      ;;
+    --fw_vnet_name)
+      fw_vnet_name="$1"
+      shift
+      ;; 
     --help|-help|-h)
       print_usage
       exit 13
@@ -515,6 +533,8 @@ throw_if_empty --id_client_id "$id_client_id"
 throw_if_empty --storage_acc_name "$storage_acc_name"
 throw_if_empty --blob_container_name "$blob_container_name"
 throw_if_empty --ssl_type "$ssl_type"
+throw_if_empty --aks_vnet_name "$aks_vnet_name"
+throw_if_empty --fw_vnet_name "$fw_vnet_name"
 if [ "$ssl_type" = "provided" ]; then
   throw_if_empty --ssl_cert "$ssl_cert"
   throw_if_empty --ssl_key "$ssl_key"
@@ -545,9 +565,9 @@ deployKineticaCluster
 
 ## Setting up default backup schedules
 #weekly retain 30 days
-#velero schedule create default-gpudb-backup-weekly --schedule "@every 168h" --include-namespaces gpudb --ttl 720h0m0s
+velero schedule create default-gpudb-backup-weekly --schedule "@every 168h" --include-namespaces gpudb --ttl 720h0m0s
 #daily retain 8 days
-#velero schedule create default-gpudb-backup-daily --schedule "@every 24h" --include-namespaces gpudb --ttl 192h0m0s
+velero schedule create default-gpudb-backup-daily --schedule "@every 24h" --include-namespaces gpudb --ttl 192h0m0s
 
 #checkForKineticaRanksReadiness
 
