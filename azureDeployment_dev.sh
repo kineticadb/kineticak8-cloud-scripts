@@ -70,6 +70,8 @@ function azureCliInstall() {
   az account set --subscription "${subscription_id}"
   az aks get-credentials --resource-group "${resource_group}" --name "${aks_name}"
 
+  az config set extension.use_dynamic_install=yes_without_prompt
+
   ## Add managed identity to scalesets
 
   for ssname in $(az vmss list --resource-group "$aks_infra_rg" --query "[].name" --output tsv); do
