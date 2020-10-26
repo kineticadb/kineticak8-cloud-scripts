@@ -288,11 +288,7 @@ EOF
 
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  #if [ "$ssl_type" = "auto" ]; then
-  #  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param fqdn="$fqdn"
-  #else
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param dns-label="test1"
-  #fi
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
   echo "\n---------- Waiiting for Ingress to be available --\n"
   checkForClusterIP
 
