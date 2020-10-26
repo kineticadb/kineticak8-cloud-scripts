@@ -289,10 +289,10 @@ EOF
   #if [ "$ssl_type" = "auto" ]; then
   #  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param fqdn="$fqdn"
   #else
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param dns-label="test1"
   #fi
   echo "\n---------- Waiiting for Ingress to be available --\n"
-  checkForExternalIP
+  checkForClusterIP
 
   echo "\n---------- Setup Firewall Rules ----------\n"
 
@@ -311,7 +311,7 @@ EOF
     --translated-port "443"
 }
 
-function checkForExternalIP() {
+function checkForClusterIP() {
   # Wait for service to be up:
   count=0
   attempts=60
@@ -326,7 +326,7 @@ function checkForExternalIP() {
   done
   # Get external IP Address:
   clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
-  echo "http://$clusterIP/gadmin" > /opt/ipaddr
+  echo "https://$fqdn:443/gadmin" > /opt/ipaddr
 }
 
 
