@@ -286,11 +286,11 @@ EOF
 
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  if [ "$ssl_type" = "auto" ]; then
-    porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param fqdn="$fqdn"
-  else
-    porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
-  fi
+  #if [ "$ssl_type" = "auto" ]; then
+  #  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param fqdn="$fqdn"
+  #else
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
+  #fi
   echo "\n---------- Waiiting for Ingress to be available --\n"
   checkForExternalIP
 
@@ -348,6 +348,7 @@ spec:
       failureThreshold: 30
   ingressController: nginx
   gpudbCluster:
+    fqdn: "$fqdn"
     podManagementPolicy: Parallel
     license: "$license_key"
     image: kinetica/kinetica-k8s-intel:v0.2
