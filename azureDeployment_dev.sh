@@ -307,9 +307,9 @@ EOF
     --name "dnat-to-lb" \
     --protocol "TCP" \
     --source-addresses "*" \
-    --destination-addresses "${public_IP}" \ # FW public ip 
+    --destination-addresses "${public_IP}" \
     --destination-port "443" \
-    --translated-address "${clusterIP}" \ # $clusterIP -> LB Internal IP
+    --translated-address "${clusterIP}" \
     --translated-port "443"
 }
 
