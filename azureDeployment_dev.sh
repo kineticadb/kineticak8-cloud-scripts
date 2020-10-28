@@ -287,9 +287,28 @@ EOF
   fqdn=$(az network public-ip show -n "${aks_name}-fw-ip" -g "${resource_group}" --query "dnsSettings.fqdn" -o tsv)
   public_IP=$(az network public-ip show -n "${aks_name}-fw-ip" -g "${resource_group}" --query "ipAddress" -o tsv)
 
+  echo "\n---------- Set LDAP AUTH ----------\n"
+  cat <<EOF | tee /ldap-admin.yaml
+env:
+  LDAP_ORGANISATION: "Kinetica DB Inc."
+  LDAP_DOMAIN: "kinetica.com"
 
+customLdifFiles:
+  01-default-users.ldif: |-
+    dn: ou=global_admins,dc=kinetica,dc=com
+    objectClass: organizationalUnit
+    ou: global_admins
+    
+    dn: uid=${kinetica_user},ou=global_admins,dc=kinetica,dc=com
+    objectclass: person
+    objectclass: inetOrgPerson
+    uid: ${kinetica_user}
+    cn: ${kinetica_user}
+    sn: Admin
+    userPassword: ${kinetica_pass}
+EOF
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaAdminUser="${kinetica_user}" --param kineticaAdminPassword="${kinetica_pass}"
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
   kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
   echo "\n---------- Waiiting for Ingress to be available --\n"
   checkForClusterIP
