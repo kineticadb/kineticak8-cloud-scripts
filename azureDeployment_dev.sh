@@ -289,7 +289,7 @@ EOF
 
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaAdminUser="${kinetica_user}" --param kineticaAdminPassword="${kinetica_pass}"
   kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
   echo "\n---------- Waiiting for Ingress to be available --\n"
   checkForClusterIP
