@@ -36,10 +36,11 @@ Arguments
   --operator_version                  : The version of the Kinetica-K8s-Operator image to use
   --storage_acc_name                  : The storage account name that will be used by Kinetica
   --blob_container_name               : The blob container where the backups will be stored
+  --kinetica_user                     : The Kinetica Administrator User to manage Workbench
+  --kinetica_pass                     : The Kinetica Administrator Password to manage Workbench
   --ssl_type                          : The type of SSL security to be implemented 'auto' will use let's encrypt, 'provided' will use the cert and key from ssl_cert and ssl_key parameters
   --ssl_cert                          : The SSL Certificate to be used to secure the ingress controller
   --ssl_key                           : The corresponding SSL Key to be used to secure the ingress controller
-  --dns_label                         : The DNS label that will be provided
   --aks_vnet_name                     : The AKS Virtual Network Name to create the VPC peering
   --fw_vnet_name                      : The Firewall Virtual Network Name to create the VPC peering
 EOF
@@ -289,10 +290,13 @@ EOF
 
   echo "\n---------- Installing Kinetica Operator ----------\n"
   porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
+  kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
   echo "\n---------- Waiiting for Ingress to be available --\n"
   checkForClusterIP
 
   echo "\n---------- Setup Firewall Rules ----------\n"
+
+  echo "\n---------- 443 pass through ----------\n"
 
   az network firewall nat-rule create \
     --resource-group "${resource_group}" \
@@ -300,13 +304,29 @@ EOF
     --collection-name "aks-ingress-dnat-rules" \
     --priority "100" \
     --action "dnat" \
-    --name "dnat-to-lb" \
+    --name "dnat-to-lb-443" \
     --protocol "TCP" \
     --source-addresses "*" \
     --destination-addresses "${public_IP}" \
     --destination-port "443" \
     --translated-address "${clusterIP}" \
     --translated-port "443"
+    
+  echo "\n---------- 80 pass through ----------\n"
+
+  az network firewall nat-rule create \
+    --resource-group "${resource_group}" \
+    --firewall-name "${aks_name}-fw" \
+    --collection-name "aks-ingress-dnat-rules" \
+    --priority "100" \
+    --action "dnat" \
+    --name "dnat-to-lb-80" \
+    --protocol "TCP" \
+    --source-addresses "*" \
+    --destination-addresses "${public_IP}" \
+    --destination-port "80" \
+    --translated-address "${clusterIP}" \
+    --translated-port "80"
 }
 
 function checkForClusterIP() {
@@ -374,7 +394,7 @@ spec:
         cpu: "5"
         memory: "100Gi"
       requests:
-        cpu: "4.5"
+        cpu: "4"
         memory: "50Gi"
   gadmin:
     isEnabled: true
@@ -389,8 +409,7 @@ spec:
       protocol: TCP
       containerPort: 8088
 EOF
-
-  setSecrets
+  kubectl -n gpudb create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
 }
 
 
@@ -434,11 +453,6 @@ function loadSSLCerts() {
   else
     kubectl -n nginx create secret generic tls-secret
   fi
-}
-
-function setSecrets() {
-  kubectl -n gpudb create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
-  kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
 }
 
 #---------------------------------------------------------------------------------
@@ -517,10 +531,6 @@ do
       ssl_key="$1"
       shift
       ;;
-    --dns_label)
-      dns_label="$1"
-      shift
-      ;;
     --aks_vnet_name)
       aks_vnet_name="$1"
       shift
@@ -528,7 +538,15 @@ do
     --fw_vnet_name)
       fw_vnet_name="$1"
       shift
-      ;; 
+      ;;
+    --kinetica_user)
+      kinetica_user="$1"
+      shift
+      ;;
+    --kinetica_pass)
+      kinetica_pass="$1"
+      shift
+      ;;
     --help|-help|-h)
       print_usage
       exit 13
@@ -560,8 +578,6 @@ throw_if_empty --fw_vnet_name "$fw_vnet_name"
 if [ "$ssl_type" = "provided" ]; then
   throw_if_empty --ssl_cert "$ssl_cert"
   throw_if_empty --ssl_key "$ssl_key"
-else
-  throw_if_empty --dns_label "$dns_label"
 fi
 
 identity_resource_id="/subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
