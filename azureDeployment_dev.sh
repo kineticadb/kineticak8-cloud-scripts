@@ -288,7 +288,7 @@ EOF
   public_IP=$(az network public-ip show -n "${aks_name}-fw-ip" -g "${resource_group}" --query "ipAddress" -o tsv)
 
   echo "\n---------- Set LDAP AUTH ----------\n"
-  cat <<EOF | tee /ldap-admin.yaml
+  cat <<EOF | tee /values.yaml
 env:
   LDAP_ORGANISATION: "Kinetica DB Inc."
   LDAP_DOMAIN: "kinetica.com"
@@ -308,7 +308,7 @@ customLdifFiles:
     userPassword: ${kinetica_pass}
 EOF
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaAdmin=/values.yaml
   kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
   echo "\n---------- Waiiting for Ingress to be available --\n"
   checkForClusterIP
