@@ -306,6 +306,32 @@ customLdifFiles:
     cn: ${kinetica_user}
     sn: Admin
     userPassword: ${kinetica_pass}
+
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  stroageClassName: Default
+  size: 8Gi
+
+affinity: 
+  nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: app.kinetica.com/pool
+                operator: In
+                values:
+                  - infra
+  podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+         matchExpressions:
+         - key: app
+           operator: In
+           values:
+           - nginx-ingress
+        topologyKey: kubernetes.io/hostname
+
 EOF
   echo "\n---------- Installing Kinetica Operator ----------\n"
   porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaAdmin=/values.yaml
@@ -320,7 +346,7 @@ EOF
   az network firewall nat-rule create \
     --resource-group "${resource_group}" \
     --firewall-name "${aks_name}-fw" \
-    --collection-name "aks-ingress-dnat-rules" \
+    --collection-name "aks-ingress-dnat-rules-443" \
     --priority "100" \
     --action "dnat" \
     --name "dnat-to-lb-443" \
@@ -336,8 +362,8 @@ EOF
   az network firewall nat-rule create \
     --resource-group "${resource_group}" \
     --firewall-name "${aks_name}-fw" \
-    --collection-name "aks-ingress-dnat-rules" \
-    --priority "100" \
+    --collection-name "aks-ingress-dnat-rules-80" \
+    --priority "200" \
     --action "dnat" \
     --name "dnat-to-lb-80" \
     --protocol "TCP" \
@@ -386,9 +412,10 @@ spec:
   ingressController: nginx
   gpudbCluster:
     fqdn: "$fqdn"
+    letsEncrypt: true
     podManagementPolicy: Parallel
     license: "$license_key"
-    image: kinetica/kinetica-k8s-intel:v0.2
+    image: kinetica/kinetica-k8s-intel:v7.1.1
     clusterName: "$kcluster_name"
     # For operators higher than 2.4
     hasPools: true
