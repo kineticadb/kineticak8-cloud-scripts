@@ -79,13 +79,12 @@ function azureCliInstall() {
     az vmss identity assign -g "$aks_infra_rg" -n "$ssname" --identities "$identity_resource_id"
   done
 
-  echo "\n---------- creating peerings ----------\n"
+  
+  echo "\n---------- Gather Azure Info ----------\n"
+  fqdn=$(az network public-ip show -n "${aks_name}-fw-ip" -g "${resource_group}" --query "dnsSettings.fqdn" -o tsv)
+  public_IP=$(az network public-ip show -n "${aks_name}-fw-ip" -g "${resource_group}" --query "ipAddress" -o tsv)
   aks_vnet_id=$(az network vnet show -n "${aks_vnet_name}" -g ${resource_group} --query "id" -o tsv)
   fw_vnet_id=$(az network vnet show -n "${fw_vnet_name}" -g ${resource_group} --query "id" -o tsv)
-  
-  
-  az network vnet peering create --name "${aks_vnet_name}"-"${fw_vnet_name}" --resource-group "${resource_group}" --vnet-name "${aks_vnet_name}" --remote-vnet "${fw_vnet_id}" --allow-vnet-access
-  az network vnet peering create --name "${fw_vnet_name}"-"${aks_vnet_name}" --resource-group "${resource_group}" --vnet-name "${fw_vnet_name}" --remote-vnet "${aks_vnet_id}" --allow-vnet-access
 }
 
 function installKubectl() {
@@ -283,9 +282,6 @@ function loadOperator() {
   ]
 }
 EOF
-  echo "\n---------- Get Firewall Details ----------\n"
-  fqdn=$(az network public-ip show -n "${aks_name}-fw-ip" -g "${resource_group}" --query "dnsSettings.fqdn" -o tsv)
-  public_IP=$(az network public-ip show -n "${aks_name}-fw-ip" -g "${resource_group}" --query "ipAddress" -o tsv)
 
   echo "\n---------- Set LDAP AUTH ----------\n"
   cat <<EOF | tee /values.yaml
@@ -336,42 +332,6 @@ EOF
   echo "\n---------- Installing Kinetica Operator ----------\n"
   porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaAdmin=/values.yaml
   kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
-  echo "\n---------- Waiiting for Ingress to be available --\n"
-  checkForClusterIP
-
-  echo "\n---------- Setup Firewall Rules ----------\n"
-
-  echo "\n---------- 443 pass through ----------\n"
-
-  az network firewall nat-rule create \
-    --resource-group "${resource_group}" \
-    --firewall-name "${aks_name}-fw" \
-    --collection-name "aks-ingress-dnat-rules-443" \
-    --priority "100" \
-    --action "dnat" \
-    --name "dnat-to-lb-443" \
-    --protocol "TCP" \
-    --source-addresses "*" \
-    --destination-addresses "${public_IP}" \
-    --destination-port "443" \
-    --translated-address "${clusterIP}" \
-    --translated-port "443"
-    
-  echo "\n---------- 80 pass through ----------\n"
-
-  az network firewall nat-rule create \
-    --resource-group "${resource_group}" \
-    --firewall-name "${aks_name}-fw" \
-    --collection-name "aks-ingress-dnat-rules-80" \
-    --priority "200" \
-    --action "dnat" \
-    --name "dnat-to-lb-80" \
-    --protocol "TCP" \
-    --source-addresses "*" \
-    --destination-addresses "${public_IP}" \
-    --destination-port "80" \
-    --translated-address "${clusterIP}" \
-    --translated-port "80"
 }
 
 function checkForClusterIP() {
@@ -499,6 +459,46 @@ function loadSSLCerts() {
   else
     kubectl -n nginx create secret generic tls-secret
   fi
+}
+
+function azureNetworking(){
+  echo "\n---------- Waiiting for Ingress to be available --\n"
+  checkForClusterIP
+  echo "\n---------- Setup Firewall and Networking ----------\n"
+  echo "\n---------- creating peerings ----------\n"
+  az network vnet peering create --name "${aks_vnet_name}"-"${fw_vnet_name}" --resource-group "${resource_group}" --vnet-name "${aks_vnet_name}" --remote-vnet "${fw_vnet_id}" --allow-vnet-access
+  az network vnet peering create --name "${fw_vnet_name}"-"${aks_vnet_name}" --resource-group "${resource_group}" --vnet-name "${fw_vnet_name}" --remote-vnet "${aks_vnet_id}" --allow-vnet-access
+  echo "\n---------- Firewall Rules ----------\n"
+  echo "\n---------- 443 pass through ----------\n"
+  az network firewall nat-rule create \
+    --resource-group "${resource_group}" \
+    --firewall-name "${aks_name}-fw" \
+    --collection-name "aks-ingress-dnat-rules-443" \
+    --priority "100" \
+    --action "dnat" \
+    --name "dnat-to-lb-443" \
+    --protocol "TCP" \
+    --source-addresses "*" \
+    --destination-addresses "${public_IP}" \
+    --destination-port "443" \
+    --translated-address "${clusterIP}" \
+    --translated-port "443"
+    
+  echo "\n---------- 80 pass through ----------\n"
+
+  az network firewall nat-rule create \
+    --resource-group "${resource_group}" \
+    --firewall-name "${aks_name}-fw" \
+    --collection-name "aks-ingress-dnat-rules-80" \
+    --priority "200" \
+    --action "dnat" \
+    --name "dnat-to-lb-80" \
+    --protocol "TCP" \
+    --source-addresses "*" \
+    --destination-addresses "${public_IP}" \
+    --destination-port "80" \
+    --translated-address "${clusterIP}" \
+    --translated-port "80"
 }
 
 #---------------------------------------------------------------------------------
@@ -646,11 +646,7 @@ loadOperator
 
 deployKineticaCluster
 
-## Setting up default backup schedules
-#weekly retain 30 days
-#velero schedule create default-gpudb-backup-weekly --schedule "@every 168h" --include-namespaces gpudb --ttl 720h0m0s
-#daily retain 8 days
-#velero schedule create default-gpudb-backup-daily --schedule "@every 24h" --include-namespaces gpudb --ttl 192h0m0s
+azureNetworking
 
 #checkForKineticaRanksReadiness
 
