@@ -36,12 +36,14 @@ Arguments
   --operator_version                  : The version of the Kinetica-K8s-Operator image to use
   --storage_acc_name                  : The storage account name that will be used by Kinetica
   --blob_container_name               : The blob container where the backups will be stored
+  --kinetica_user                     : The Kinetica Administrator User to manage Workbench
+  --kinetica_pass                     : The Kinetica Administrator Password to manage Workbench
   --ssl_type                          : The type of SSL security to be implemented 'auto' will use let's encrypt, 'provided' will use the cert and key from ssl_cert and ssl_key parameters
   --ssl_cert                          : The SSL Certificate to be used to secure the ingress controller
   --ssl_key                           : The corresponding SSL Key to be used to secure the ingress controller
-  --dns_label                         : The DNS label that will be provided
   --aks_vnet_name                     : The AKS Virtual Network Name to create the VPC peering
   --fw_vnet_name                      : The Firewall Virtual Network Name to create the VPC peering
+  --environment                       : Whether to deploy let's encrypt staging or prod versions when deploying
 EOF
 }
 
@@ -70,19 +72,20 @@ function azureCliInstall() {
   az account set --subscription "${subscription_id}"
   az aks get-credentials --resource-group "${resource_group}" --name "${aks_name}"
 
+  az config set extension.use_dynamic_install=yes_without_prompt
+
   ## Add managed identity to scalesets
 
   for ssname in $(az vmss list --resource-group "$aks_infra_rg" --query "[].name" --output tsv); do
     az vmss identity assign -g "$aks_infra_rg" -n "$ssname" --identities "$identity_resource_id"
   done
 
-  echo "\n---------- creating peerings ----------\n"
+  
+  echo "\n---------- Gather Azure Info ----------\n"
+  fqdn=$(az network public-ip show -n "${aks_name}-fw-ip" -g "${resource_group}" --query "dnsSettings.fqdn" -o tsv)
+  public_IP=$(az network public-ip show -n "${aks_name}-fw-ip" -g "${resource_group}" --query "ipAddress" -o tsv)
   aks_vnet_id=$(az network vnet show -n "${aks_vnet_name}" -g ${resource_group} --query "id" -o tsv)
   fw_vnet_id=$(az network vnet show -n "${fw_vnet_name}" -g ${resource_group} --query "id" -o tsv)
-  
-  
-  az network vnet peering create --name "${aks_vnet_name}"-"${fw_vnet_name}" --resource-group "${resource_group}" --vnet-name "${aks_vnet_name}" --remote-vnet "${fw_vnet_id}" --allow-vnet-access
-  az network vnet peering create --name "${fw_vnet_name}"-"${aks_vnet_name}" --resource-group "${resource_group}" --vnet-name "${fw_vnet_name}" --remote-vnet "${aks_vnet_id}" --allow-vnet-access
 }
 
 function installKubectl() {
@@ -105,25 +108,6 @@ function checkKubeReady() {
       sleep 10s
     fi
   done
-}
-
-function preflightOperator() {
-  pushd /usr/local/bin/
-  if !(command -v docker >/dev/null); then
-    echo "\n---------- Installing Docker ----------\n"
-    sudo apt-get install docker.io --yes
-  fi
-  if !(command -v porter >/dev/null); then
-    echo "\n---------- Installing Porter ----------\n"
-    pushd /usr/local/bin/
-    curl https://cdn.porter.sh/v0.27.2/install-linux.sh | bash
-    ln -s ~/.porter/porter /usr/local/bin/porter 
-    ln -s ~/.porter/porter-runtime /usr/local/bin/porter-runtime
-  fi
-  popd
-
-  loadSSLCerts
-
 }
 
 function gpuSetup() {
@@ -176,120 +160,6 @@ spec:
           hostPath:
             path: /var/lib/kubelet/device-plugins
 EOF
-}
-
-function checkForExternalIP() {
-  # Wait for service to be up:
-  count=0
-  attempts=60
-  while [[ "$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
-    echo "waiting for ip to be ready"
-    count=$((count+1))
-    if [ "$count" -eq "$attempts" ]; then
-      echo "ERROR: Timeout reached while waiting for IP address to be provisioned, please review deployment for any possible issues, or contact technical support for assistance"
-      exit 1
-    fi 
-    sleep 10
-  done
-  # Get external IP Address:
-  clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
-  echo "http://$clusterIP/gadmin" > /opt/ipaddr
-}
-
-function loadOperator() {
-  echo "\n---------- Generating Porter Credentials ----------\n"
-  TIMESTAMP=$(date -u +%Y-%m-%dT%T.%NZ)
-  mkdir -p /root/.porter/credentials/
-  touch /root/.porter/credentials/kinetica-k8s-operator.json
-  cat <<EOF | tee /root/.porter/credentials/kinetica-k8s-operator.json
-{
-  "schemaVersion": "1.0.0-DRAFT+b6c701f",
-  "name": "kinetica-k8s-operator",
-  "created": "$TIMESTAMP",
-  "modified": "$TIMESTAMP",
-  "credentials": [
-    {
-      "name": "kubeconfig",
-      "source": {
-        "path": "/root/.kube/config"
-      }
-    }
-  ]
-}
-EOF
-
-  echo "\n---------- Installing Kinetica Operator ----------\n"
-  if [ "$ssl_type" = "auto" ]; then
-    porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param dns-label="$dns_label"
-  else
-    porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks
-  fi
-  echo "\n---------- Waiiting for Ingress to be available --\n"
-  checkForExternalIP
-}
-
-function deployKineticaCluster() {
-  echo "\n---------- Creating Kinetica Cluster ----------\n"
-  # change to manged premium after the fact
-  cat <<EOF | kubectl apply --wait -f -
-apiVersion: app.kinetica.com/v1
-kind: KineticaCluster
-metadata:
-  name: "$kcluster_name"
-  namespace: gpudb
-spec:
-  clusterDaemon:
-    bindAddress: "serf://0.0.0.0:7946"
-    rpcAddress: "rpc://127.0.0.1:7373"
-  hostManagerMonitor:
-    livenessProbe:
-      failureThreshold: 30
-  ingressController: nginx
-  gpudbCluster:
-    podManagementPolicy: Parallel
-    license: "$license_key"
-    image: kinetica/kinetica-k8s-intel:v0.2
-    clusterName: "$kcluster_name"
-    # For operators higher than 2.4
-    hasPools: true
-    hasRankPerNode: true
-    #
-    replicas: $ranks
-    rankStorageSize: "$rank_storage"
-    persistTier:
-      volumeClaim:
-        spec:
-          storageClassName: "default"
-    diskCacheTier:
-      volumeClaim:
-        spec:
-          storageClassName: "default"
-    hostManagerPort:
-      name: "hostmanager"
-      protocol: TCP
-      containerPort: 9300
-    resources:
-      limits:
-        cpu: "5"
-        memory: "100Gi"
-      requests:
-        cpu: "4.5"
-        memory: "50Gi"
-  gadmin:
-    isEnabled: true
-    containerPort:
-      name: "gadmin"
-      protocol: TCP
-      containerPort: 8080
-  reveal:
-    isEnabled: true
-    containerPort:
-      name: "reveal"
-      protocol: TCP
-      containerPort: 8088
-EOF
-
-  setSecrets
 }
 
 function installPodIdentity() {
@@ -372,6 +242,233 @@ EOF
   '{"spec":{"template":{"metadata":{"labels":{"aadpodidbinding":"'$AZURE_IDENTITY_NAME'"}}}}}'
 }
 
+
+function preflightOperator() {
+  pushd /usr/local/bin/
+  if !(command -v docker >/dev/null); then
+    echo "\n---------- Installing Docker ----------\n"
+    sudo apt-get install docker.io --yes
+  fi
+  if !(command -v porter >/dev/null); then
+    echo "\n---------- Installing Porter ----------\n"
+    pushd /usr/local/bin/
+    curl https://cdn.porter.sh/v0.27.2/install-linux.sh | bash
+    ln -s ~/.porter/porter /usr/local/bin/porter 
+    ln -s ~/.porter/porter-runtime /usr/local/bin/porter-runtime
+  fi
+  popd
+
+  loadSSLCerts
+
+}
+
+function loadOperator() {
+  echo "\n---------- Generating Porter Credentials ----------\n"
+  TIMESTAMP=$(date -u +%Y-%m-%dT%T.%NZ)
+  mkdir -p /root/.porter/credentials/
+  touch /root/.porter/credentials/kinetica-k8s-operator.json
+  cat <<EOF | tee /root/.porter/credentials/kinetica-k8s-operator.json
+{
+  "schemaVersion": "1.0.0-DRAFT+b6c701f",
+  "name": "kinetica-k8s-operator",
+  "created": "$TIMESTAMP",
+  "modified": "$TIMESTAMP",
+  "credentials": [
+    {
+      "name": "kubeconfig",
+      "source": {
+        "path": "/root/.kube/config"
+      }
+    }
+  ]
+}
+EOF
+
+  echo "\n---------- Set LDAP AUTH ----------\n"
+  cat <<EOF | tee /values.yaml
+env:
+  LDAP_ORGANISATION: "Kinetica DB Inc."
+  LDAP_DOMAIN: "kinetica.com"
+
+customLdifFiles:
+  01-default-users.ldif: |-
+    dn: ou=global_admins,dc=kinetica,dc=com
+    objectClass: organizationalUnit
+    ou: global_admins
+    
+    dn: uid=${kinetica_user},ou=global_admins,dc=kinetica,dc=com
+    objectclass: person
+    objectclass: inetOrgPerson
+    uid: ${kinetica_user}
+    cn: ${kinetica_user}
+    sn: Admin
+    userPassword: ${kinetica_pass}
+
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  stroageClassName: Default
+  size: 8Gi
+
+affinity: 
+  nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: app.kinetica.com/pool
+                operator: In
+                values:
+                  - infra
+  podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+         matchExpressions:
+         - key: app
+           operator: In
+           values:
+           - nginx-ingress
+        topologyKey: kubernetes.io/hostname
+
+EOF
+  echo "\n---------- Installing Kinetica Operator ----------\n"
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaAdmin=/values.yaml
+  kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
+}
+
+function deployKineticaCluster() {
+  echo "\n---------- Creating Kinetica Cluster ----------\n"
+  # change to manged premium after the fact
+  cat <<EOF | tee /opt/kinetica_cluster.yaml
+apiVersion: app.kinetica.com/v1
+kind: KineticaCluster
+metadata:
+  name: "$kcluster_name"
+  namespace: gpudb
+spec:
+  clusterDaemon:
+    bindAddress: "serf://0.0.0.0:7946"
+    rpcAddress: "rpc://127.0.0.1:7373"
+  hostManagerMonitor:
+    livenessProbe:
+      failureThreshold: 30
+  ingressController: nginx
+  gpudbCluster:
+    fqdn: "$fqdn"
+    letsEncrypt: true
+    podManagementPolicy: Parallel
+    license: "$license_key"
+    image: kinetica/kinetica-k8s-intel:v7.1.1
+    clusterName: "$kcluster_name"
+    # For operators higher than 2.4
+    hasPools: true
+    hasRankPerNode: true
+    #
+    replicas: $ranks
+    rankStorageSize: "$rank_storage"
+    persistTier:
+      volumeClaim:
+        spec:
+          storageClassName: "default"
+    diskCacheTier:
+      volumeClaim:
+        spec:
+          storageClassName: "default"
+    hostManagerPort:
+      name: "hostmanager"
+      protocol: TCP
+      containerPort: 9300
+    resources:
+      limits:
+        cpu: "5"
+        memory: "100Gi"
+      requests:
+        cpu: "4"
+        memory: "50Gi"
+  gadmin:
+    isEnabled: true
+    containerPort:
+      name: "gadmin"
+      protocol: TCP
+      containerPort: 8080
+  reveal:
+    isEnabled: true
+    containerPort:
+      name: "reveal"
+      protocol: TCP
+      containerPort: 8088
+EOF
+  kubectl -n gpudb apply --wait -f /opt/kinetica_cluster.yaml
+  kubectl -n gpudb create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
+}
+
+function loadSSLCerts() {
+  kubectl create ns nginx
+  if [ "$ssl_type" = "provided" ]; then
+    mkdir -p /opt/certs
+    curl "$ssl_cert" --output /opt/certs/cert.crt
+    curl "$ssl_key" --output /opt/certs/key.key
+    kubectl -n nginx create secret generic tls-secret --from-file=tls.crt=/opt/certs/cert.crt --from-file=tls.key=/opt/certs/key.key
+  else
+    kubectl -n nginx create secret generic tls-secret
+  fi
+}
+
+function azureNetworking(){
+  echo "\n---------- Setup Firewall and Networking ----------\n"
+  echo "\n---------- creating peerings ----------\n"
+  az network vnet peering create --name "${aks_vnet_name}"-"${fw_vnet_name}" --resource-group "${resource_group}" --vnet-name "${aks_vnet_name}" --remote-vnet "${fw_vnet_id}" --allow-vnet-access
+  az network vnet peering create --name "${fw_vnet_name}"-"${aks_vnet_name}" --resource-group "${resource_group}" --vnet-name "${fw_vnet_name}" --remote-vnet "${aks_vnet_id}" --allow-vnet-access
+  echo "\n---------- Firewall Rules ----------\n"
+  echo "\n---------- 443 pass through ----------\n"
+  az network firewall nat-rule create \
+    --resource-group "${resource_group}" \
+    --firewall-name "${aks_name}-fw" \
+    --collection-name "aks-ingress-dnat-rules-443" \
+    --priority "100" \
+    --action "dnat" \
+    --name "dnat-to-lb-443" \
+    --protocol "TCP" \
+    --source-addresses "*" \
+    --destination-addresses "${public_IP}" \
+    --destination-port "443" \
+    --translated-address "${clusterIP}" \
+    --translated-port "443"
+    
+  echo "\n---------- 80 pass through ----------\n"
+
+  az network firewall nat-rule create \
+    --resource-group "${resource_group}" \
+    --firewall-name "${aks_name}-fw" \
+    --collection-name "aks-ingress-dnat-rules-80" \
+    --priority "200" \
+    --action "dnat" \
+    --name "dnat-to-lb-80" \
+    --protocol "TCP" \
+    --source-addresses "*" \
+    --destination-addresses "${public_IP}" \
+    --destination-port "80" \
+    --translated-address "${clusterIP}" \
+    --translated-port "80"
+}
+
+function checkForClusterIP() {
+  # Wait for service to be up:
+  count=0
+  attempts=60
+  while [[ "$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
+    echo "waiting for ip to be ready"
+    count=$((count+1))
+    if [ "$count" -eq "$attempts" ]; then
+      echo "ERROR: Timeout reached while waiting for IP address to be provisioned, please review deployment for any possible issues, or contact technical support for assistance"
+      exit 1
+    fi 
+    sleep 10
+  done
+  # Get external IP Address:
+  clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
+  echo "https://$fqdn:443/gadmin" > /opt/ipaddr
+}
+
 function checkForKineticaRanksReadiness() {
   # Wait for pods to be in ready state:
   count=0
@@ -400,23 +497,6 @@ function checkForGadmin() {
     fi
     sleep 10
   done
-}
-
-function loadSSLCerts() {
-  kubectl create ns nginx
-  if [ "$ssl_type" = "provided" ]; then
-    mkdir -p /opt/certs
-    curl "$ssl_cert" --output /opt/certs/cert.crt
-    curl "$ssl_key" --output /opt/certs/key.key
-    kubectl -n nginx create secret generic tls-secret --from-file=tls.crt=/opt/certs/cert.crt --from-file=tls.key=/opt/certs/key.key
-  else
-    kubectl -n nginx create secret generic tls-secret
-  fi
-}
-
-function setSecrets() {
-  kubectl -n gpudb create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
-  kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
 }
 
 #---------------------------------------------------------------------------------
@@ -495,10 +575,6 @@ do
       ssl_key="$1"
       shift
       ;;
-    --dns_label)
-      dns_label="$1"
-      shift
-      ;;
     --aks_vnet_name)
       aks_vnet_name="$1"
       shift
@@ -506,7 +582,19 @@ do
     --fw_vnet_name)
       fw_vnet_name="$1"
       shift
-      ;; 
+      ;;
+    --kinetica_user)
+      kinetica_user="$1"
+      shift
+      ;;
+    --kinetica_pass)
+      kinetica_pass="$1"
+      shift
+      ;;
+    --environment)
+      environment="$1"
+      shift
+      ;;
     --help|-help|-h)
       print_usage
       exit 13
@@ -538,8 +626,12 @@ throw_if_empty --fw_vnet_name "$fw_vnet_name"
 if [ "$ssl_type" = "provided" ]; then
   throw_if_empty --ssl_cert "$ssl_cert"
   throw_if_empty --ssl_key "$ssl_key"
+fi
+
+if [ "$environment" = "dev" ]; then
+  ssl_env="staging"
 else
-  throw_if_empty --dns_label "$dns_label"
+  ssl_env="production"
 fi
 
 identity_resource_id="/subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
@@ -548,26 +640,24 @@ azureCliInstall
 
 installKubectl
 
-preflightOperator
-
 if [ "$deployment_type" = "gpu" ]; then
   gpuSetup
 fi
 
-## Backup pre-flight
+preflightOperator
+
+loadOperator
+
 installPodIdentity 
 
 installVeleroCli
 
-loadOperator
+echo "\n---------- Waiiting for Ingress to be available --\n"
+checkForClusterIP
 
 deployKineticaCluster
 
-## Setting up default backup schedules
-#weekly retain 30 days
-velero schedule create default-gpudb-backup-weekly --schedule "@every 168h" --include-namespaces gpudb --ttl 720h0m0s
-#daily retain 8 days
-velero schedule create default-gpudb-backup-daily --schedule "@every 24h" --include-namespaces gpudb --ttl 192h0m0s
+azureNetworking
 
 #checkForKineticaRanksReadiness
 
