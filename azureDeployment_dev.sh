@@ -631,9 +631,9 @@ if [ "$ssl_type" = "provided" ]; then
 fi
 
 if [ "$environment" = "dev" ]; then
-  ssl_env="Staging"
+  ssl_env="staging"
 else
-  ssl_env="Production"
+  ssl_env="production"
 fi
 
 identity_resource_id="/subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
