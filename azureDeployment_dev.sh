@@ -43,6 +43,7 @@ Arguments
   --ssl_key                           : The corresponding SSL Key to be used to secure the ingress controller
   --aks_vnet_name                     : The AKS Virtual Network Name to create the VPC peering
   --fw_vnet_name                      : The Firewall Virtual Network Name to create the VPC peering
+  --environment                       : Whether to deploy let's encrypt staging or prod versions when deploying
 EOF
 }
 
@@ -353,7 +354,9 @@ spec:
   ingressController: nginx
   gpudbCluster:
     fqdn: "$fqdn"
-    letsEncrypt: true
+    letsEncrypt: 
+      enabled: true
+      environment: "$ssl_env"
     podManagementPolicy: Parallel
     license: "$license_key"
     image: kinetica/kinetica-k8s-intel:v7.1.1
@@ -590,6 +593,10 @@ do
       kinetica_pass="$1"
       shift
       ;;
+    --environment)
+      environment="$1"
+      shift
+      ;;
     --help|-help|-h)
       print_usage
       exit 13
@@ -621,6 +628,12 @@ throw_if_empty --fw_vnet_name "$fw_vnet_name"
 if [ "$ssl_type" = "provided" ]; then
   throw_if_empty --ssl_cert "$ssl_cert"
   throw_if_empty --ssl_key "$ssl_key"
+fi
+
+if [ "$environment" = "dev" ]; then
+  ssl_env="Staging"
+else
+  ssl_env="Production"
 fi
 
 identity_resource_id="/subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
