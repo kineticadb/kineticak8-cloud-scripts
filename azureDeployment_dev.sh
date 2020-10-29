@@ -334,29 +334,10 @@ EOF
   kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
 }
 
-function checkForClusterIP() {
-  # Wait for service to be up:
-  count=0
-  attempts=60
-  while [[ "$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
-    echo "waiting for ip to be ready"
-    count=$((count+1))
-    if [ "$count" -eq "$attempts" ]; then
-      echo "ERROR: Timeout reached while waiting for IP address to be provisioned, please review deployment for any possible issues, or contact technical support for assistance"
-      exit 1
-    fi 
-    sleep 10
-  done
-  # Get external IP Address:
-  clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
-  echo "https://$fqdn:443/gadmin" > /opt/ipaddr
-}
-
-
 function deployKineticaCluster() {
   echo "\n---------- Creating Kinetica Cluster ----------\n"
   # change to manged premium after the fact
-  cat <<EOF | kubectl apply --wait -f -
+  cat <<EOF | tee /opt/kinetica_cluster.yaml
 apiVersion: app.kinetica.com/v1
 kind: KineticaCluster
 metadata:
@@ -415,38 +396,8 @@ spec:
       protocol: TCP
       containerPort: 8088
 EOF
+  kubectl -n gpudb apply --wait -f /opt/kinetica_cluster.yaml
   kubectl -n gpudb create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
-}
-
-
-function checkForKineticaRanksReadiness() {
-  # Wait for pods to be in ready state:
-  count=0
-  attempts=40
-  while [[ "$(kubectl -n gpudb get sts -o jsonpath='{.items[*].status.readyReplicas}')" != "$ranks" ]]; do
-    echo "waiting for pods to be up" 
-    count=$((count+1))
-    if [ "$count" -eq "$attempts" ]; then
-      echo "ERROR: Timeout reached while waiting for Kinetica pods to be up, please review status of deployment, or contact technical support for assistance"
-      break
-    fi
-    sleep 10
-  done
-}
-
-function checkForGadmin() {
-  # Make sure gadmin is up
-  count=0
-  attempts=10
-  while [[ "$(curl -s -o /dev/null -L -w ''%{http_code}'' "$clusterIP"/gadmin)" != '200' ]]; do
-    echo "Waiting for gadmin to be up"
-    count=$((count+1))
-    if [ "$count" -eq "$attempts" ]; then
-      echo "ERROR: Timeout reached while waiting for Gadmin to be up, please review status of deployment, or contact technical support for assistance"
-      break
-    fi
-    sleep 10
-  done
 }
 
 function loadSSLCerts() {
@@ -462,8 +413,6 @@ function loadSSLCerts() {
 }
 
 function azureNetworking(){
-  echo "\n---------- Waiiting for Ingress to be available --\n"
-  checkForClusterIP
   echo "\n---------- Setup Firewall and Networking ----------\n"
   echo "\n---------- creating peerings ----------\n"
   az network vnet peering create --name "${aks_vnet_name}"-"${fw_vnet_name}" --resource-group "${resource_group}" --vnet-name "${aks_vnet_name}" --remote-vnet "${fw_vnet_id}" --allow-vnet-access
@@ -499,6 +448,54 @@ function azureNetworking(){
     --destination-port "80" \
     --translated-address "${clusterIP}" \
     --translated-port "80"
+}
+
+function checkForClusterIP() {
+  # Wait for service to be up:
+  count=0
+  attempts=60
+  while [[ "$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
+    echo "waiting for ip to be ready"
+    count=$((count+1))
+    if [ "$count" -eq "$attempts" ]; then
+      echo "ERROR: Timeout reached while waiting for IP address to be provisioned, please review deployment for any possible issues, or contact technical support for assistance"
+      exit 1
+    fi 
+    sleep 10
+  done
+  # Get external IP Address:
+  clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
+  echo "https://$fqdn:443/gadmin" > /opt/ipaddr
+}
+
+function checkForKineticaRanksReadiness() {
+  # Wait for pods to be in ready state:
+  count=0
+  attempts=40
+  while [[ "$(kubectl -n gpudb get sts -o jsonpath='{.items[*].status.readyReplicas}')" != "$ranks" ]]; do
+    echo "waiting for pods to be up" 
+    count=$((count+1))
+    if [ "$count" -eq "$attempts" ]; then
+      echo "ERROR: Timeout reached while waiting for Kinetica pods to be up, please review status of deployment, or contact technical support for assistance"
+      break
+    fi
+    sleep 10
+  done
+}
+
+function checkForGadmin() {
+  # Make sure gadmin is up
+  count=0
+  attempts=10
+  while [[ "$(curl -s -o /dev/null -L -w ''%{http_code}'' "$clusterIP"/gadmin)" != '200' ]]; do
+    echo "Waiting for gadmin to be up"
+    count=$((count+1))
+    if [ "$count" -eq "$attempts" ]; then
+      echo "ERROR: Timeout reached while waiting for Gadmin to be up, please review status of deployment, or contact technical support for assistance"
+      break
+    fi
+    sleep 10
+  done
 }
 
 #---------------------------------------------------------------------------------
@@ -636,13 +633,16 @@ if [ "$deployment_type" = "gpu" ]; then
   gpuSetup
 fi
 
+preflightOperator
+
+loadOperator
+
 installPodIdentity 
 
 installVeleroCli
 
-preflightOperator
-
-loadOperator
+echo "\n---------- Waiiting for Ingress to be available --\n"
+checkForClusterIP
 
 deployKineticaCluster
 
