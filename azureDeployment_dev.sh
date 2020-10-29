@@ -354,9 +354,7 @@ spec:
   ingressController: nginx
   gpudbCluster:
     fqdn: "$fqdn"
-    letsEncrypt: 
-      enabled: true
-      environment: "$ssl_env"
+    letsEncrypt: true
     podManagementPolicy: Parallel
     license: "$license_key"
     image: kinetica/kinetica-k8s-intel:v7.1.1
