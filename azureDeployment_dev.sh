@@ -370,11 +370,11 @@ spec:
     persistTier:
       volumeClaim:
         spec:
-          storageClassName: "default"
+          storageClassName: "managed-premium"
     diskCacheTier:
       volumeClaim:
         spec:
-          storageClassName: "default"
+          storageClassName: "managed-premium"
     hostManagerPort:
       name: "hostmanager"
       protocol: TCP
