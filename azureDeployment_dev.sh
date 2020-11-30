@@ -366,24 +366,25 @@ spec:
     # GPUDB_CONFIG
     config:
       tieredStorage:
+        persistTier:
+          volumeClaim:
+            spec:
+              storageClassName: "managed-premium"
+        diskCacheTier:
+          volumeClaim:
+            spec:
+              storageClassName: "managed-premium"
         coldStorageTier:
-          basePath: "gpudb/cold_storage/"
-          containerName: "$blob_container_name"
-          sasToken: "$storage_acc_sas_tkn"
-          storageAccountKey: "$storage_acc_key"
-          storageAccountName: "$storage_acc_name"
+          coldStorageAzure:
+            basePath: "gpudb/cold_storage/"
+            containerName: "$blob_container_name"
+            sasToken: "$storage_acc_sas_tkn"
+            storageAccountKey: "$storage_acc_key"
+            storageAccountName: "$storage_acc_name"
     # For operators higher than 2.4
     hasPools: true
-    hasRankPerNode: true
+    ranksPerNode: 1
     replicas: $ranks
-    persistTier:
-      volumeClaim:
-        spec:
-          storageClassName: "managed-premium"
-    diskCacheTier:
-      volumeClaim:
-        spec:
-          storageClassName: "managed-premium"
     hostManagerPort:
       name: "hostmanager"
       protocol: TCP
@@ -458,7 +459,7 @@ function azureNetworking(){
 function checkForClusterIP() {
   # Wait for service to be up:
   count=0
-  attempts=60
+  attempts=120
   while [[ "$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
     echo "waiting for ip to be ready"
     count=$((count+1))
