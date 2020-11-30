@@ -28,7 +28,6 @@ Arguments
   --kcluster_name                     : The Kinetica cluster resource name for identification in Kubernetes
   --license_key                       : The Kinetica Service license key
   --ranks                             : The number of ranks to create
-  --rank_storage                      : The amount of disk space needed per rank
   --deployment_type                   : Whether the AKS cluster uses CPU's or GPU's
   --aks_infra_rg                      : The custom RG name for the AKS backend
   --identity_name                     : The Azure Identity Name of the managed identity that will be added to the scalesets
@@ -86,6 +85,9 @@ function azureCliInstall() {
   public_IP=$(az network public-ip show -n "${aks_name}-fw-ip" -g "${resource_group}" --query "ipAddress" -o tsv)
   aks_vnet_id=$(az network vnet show -n "${aks_vnet_name}" -g ${resource_group} --query "id" -o tsv)
   fw_vnet_id=$(az network vnet show -n "${fw_vnet_name}" -g ${resource_group} --query "id" -o tsv)
+  storage_acc_key=$(az storage account keys list -g ${resource_group} -n ${storage_acc_name} --query [0].value -o tsv)
+  sas_exp_date=$(date -u -d "7 days" '+%Y-%m-%dT%H:%MZ')
+  storage_acc_sas_tkn=$(az storage container generate-sas --account-name ${storage_acc_name} -n ${blob_container_name} --permissions acdlrw --auth-mode login --as-user --expiry ${sas_exp_date} -o tsv)
 }
 
 function installKubectl() {
@@ -361,12 +363,19 @@ spec:
     license: "$license_key"
     image: kinetica/kinetica-k8s-intel:v7.1.1
     clusterName: "$kcluster_name"
+    # GPUDB_CONFIG
+    config:
+      tieredStorage:
+        coldStorageTier:
+          basePath: "gpudb/cold_storage/"
+          containerName: "$blob_container_name"
+          sasToken: "$storage_acc_sas_tkn"
+          storageAccountKey: "$storage_acc_key"
+          storageAccountName: "$storage_acc_name"
     # For operators higher than 2.4
     hasPools: true
     hasRankPerNode: true
-    #
     replicas: $ranks
-    rankStorageSize: "$rank_storage"
     persistTier:
       volumeClaim:
         spec:
@@ -379,13 +388,6 @@ spec:
       name: "hostmanager"
       protocol: TCP
       containerPort: 9300
-    resources:
-      limits:
-        cpu: "5"
-        memory: "100Gi"
-      requests:
-        cpu: "4"
-        memory: "50Gi"
   gadmin:
     isEnabled: true
     containerPort:
@@ -533,10 +535,6 @@ do
       ranks="$1"
       shift
       ;;
-    --rank_storage)
-      rank_storage="$1"
-      shift
-      ;;
     --deployment_type)
       deployment_type="$1"
       shift
@@ -614,7 +612,6 @@ throw_if_empty --subscription_id "$subscription_id"
 throw_if_empty --resource_group "$resource_group"
 throw_if_empty --kcluster_name "$kcluster_name"
 throw_if_empty --ranks "$ranks"
-throw_if_empty --rank_storage "$rank_storage"
 throw_if_empty --deployment_type "$deployment_type"
 throw_if_empty --operator_version "$operator_version"
 throw_if_empty --aks_infra_rg "$aks_infra_rg"
