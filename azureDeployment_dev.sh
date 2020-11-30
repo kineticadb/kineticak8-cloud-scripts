@@ -375,6 +375,7 @@ spec:
             spec:
               storageClassName: "managed-premium"
         coldStorageTier:
+          coldStorageType: azure_blob
           coldStorageAzure:
             basePath: "gpudb/cold_storage/"
             containerName: "$blob_container_name"
