@@ -364,24 +364,23 @@ spec:
     image: kinetica/kinetica-k8s-intel:v7.1.1
     clusterName: "$kcluster_name"
     # GPUDB_CONFIG
-    #config:
-      tieredStorage:
-        persistTier:
-          volumeClaim:
-            spec:
-              storageClassName: "managed-premium"
-        diskCacheTier:
-          volumeClaim:
-            spec:
-              storageClassName: "managed-premium"
-        coldStorageTier:
-          coldStorageType: azure_blob
-          coldStorageAzure:
-            basePath: "gpudb/cold_storage/"
-            containerName: "$blob_container_name"
-            sasToken: "$storage_acc_sas_tkn"
-            storageAccountKey: "$storage_acc_key"
-            storageAccountName: "$storage_acc_name"
+    tieredStorageConfig:
+      persistTier:
+        volumeClaim:
+          spec:
+            storageClassName: "managed-premium"
+      diskCacheTier:
+        volumeClaim:
+          spec:
+            storageClassName: "managed-premium"
+      coldStorageTier:
+        coldStorageType: azure_blob
+        coldStorageAzure:
+          basePath: "gpudb/cold_storage/"
+          containerName: "$blob_container_name"
+          sasToken: "$storage_acc_sas_tkn"
+          storageAccountKey: "$storage_acc_key"
+          storageAccountName: "$storage_acc_name"
     # For operators higher than 2.4
     hasPools: true
     ranksPerNode: 1
