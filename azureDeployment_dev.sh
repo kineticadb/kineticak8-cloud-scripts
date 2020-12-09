@@ -420,9 +420,9 @@ function loadSSLCerts() {
 
 function azureNetworking(){
   echo "\n---------- Setup Firewall and Networking ----------\n"
-  echo "\n---------- creating peerings ----------\n"
-  az network vnet peering create --name "${aks_vnet_name}"-"${fw_vnet_name}" --resource-group "${resource_group}" --vnet-name "${aks_vnet_name}" --remote-vnet "${fw_vnet_id}" --allow-vnet-access
-  az network vnet peering create --name "${fw_vnet_name}"-"${aks_vnet_name}" --resource-group "${resource_group}" --vnet-name "${fw_vnet_name}" --remote-vnet "${aks_vnet_id}" --allow-vnet-access
+  #echo "\n---------- creating peerings ----------\n"
+  #az network vnet peering create --name "${aks_vnet_name}"-"${fw_vnet_name}" --resource-group "${resource_group}" --vnet-name "${aks_vnet_name}" --remote-vnet "${fw_vnet_id}" --allow-vnet-access
+  #az network vnet peering create --name "${fw_vnet_name}"-"${aks_vnet_name}" --resource-group "${resource_group}" --vnet-name "${fw_vnet_name}" --remote-vnet "${aks_vnet_id}" --allow-vnet-access
   echo "\n---------- Firewall Rules ----------\n"
   echo "\n---------- 443 pass through ----------\n"
   az network firewall nat-rule create \
