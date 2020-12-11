@@ -7,7 +7,7 @@ sudo touch $LOG_FILE
 exec 1> $LOG_FILE
 exec 2>&1
 exec 19>&1
-export BASH_XTRACEFD="19"
+export BASH_XTRACEFD=19
 set -x
 
 ####__________________________________
@@ -363,24 +363,26 @@ spec:
     license: "$license_key"
     image: kinetica/kinetica-k8s-intel:v7.1.1
     clusterName: "$kcluster_name"
-    # GPUDB_CONFIG
-    tieredStorageConfig:
-      persistTier:
-        volumeClaim:
-          spec:
-            storageClassName: "managed-premium"
-      diskCacheTier:
-        volumeClaim:
-          spec:
-            storageClassName: "managed-premium"
-      coldStorageTier:
-        coldStorageType: azure_blob
-        coldStorageAzure:
-          basePath: "gpudb/cold_storage/"
-          containerName: "$blob_container_name"
-          sasToken: "$storage_acc_sas_tkn"
-          storageAccountKey: "$storage_acc_key"
-          storageAccountName: "$storage_acc_name"
+    config:
+        tieredStorageConfig:
+          persistTier:
+            default:  
+              volumeClaim:
+                spec:
+                  storageClassName: "managed-premium"
+          diskCacheTier:
+            default:
+              volumeClaim:
+                spec:
+                  storageClassName: "managed-premium"
+          coldStorageTier:
+            coldStorageType: azure_blob
+            coldStorageAzure:
+              basePath: "gpudb/cold_storage/"
+              containerName: "$blob_container_name"
+              sasToken: "$storage_acc_sas_tkn"
+              storageAccountKey: "$storage_acc_key"
+              storageAccountName: "$storage_acc_name"
     # For operators higher than 2.4
     hasPools: true
     ranksPerNode: 1
@@ -419,10 +421,7 @@ function loadSSLCerts() {
 }
 
 function azureNetworking(){
-  echo "\n---------- Setup Firewall and Networking ----------\n"
-  #echo "\n---------- creating peerings ----------\n"
-  #az network vnet peering create --name "${aks_vnet_name}"-"${fw_vnet_name}" --resource-group "${resource_group}" --vnet-name "${aks_vnet_name}" --remote-vnet "${fw_vnet_id}" --allow-vnet-access
-  #az network vnet peering create --name "${fw_vnet_name}"-"${aks_vnet_name}" --resource-group "${resource_group}" --vnet-name "${fw_vnet_name}" --remote-vnet "${aks_vnet_id}" --allow-vnet-access
+  echo "\n---------- Setup Firewall ----------\n"
   echo "\n---------- Firewall Rules ----------\n"
   echo "\n---------- 443 pass through ----------\n"
   az network firewall nat-rule create \
