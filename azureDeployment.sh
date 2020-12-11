@@ -28,7 +28,6 @@ Arguments
   --kcluster_name                     : The Kinetica cluster resource name for identification in Kubernetes
   --license_key                       : The Kinetica Service license key
   --ranks                             : The number of ranks to create
-  --rank_storage                      : The amount of disk space needed per rank
   --deployment_type                   : Whether the AKS cluster uses CPU's or GPU's
   --aks_infra_rg                      : The custom RG name for the AKS backend
   --identity_name                     : The Azure Identity Name of the managed identity that will be added to the scalesets
@@ -86,6 +85,9 @@ function azureCliInstall() {
   public_IP=$(az network public-ip show -n "${aks_name}-fw-ip" -g "${resource_group}" --query "ipAddress" -o tsv)
   aks_vnet_id=$(az network vnet show -n "${aks_vnet_name}" -g ${resource_group} --query "id" -o tsv)
   fw_vnet_id=$(az network vnet show -n "${fw_vnet_name}" -g ${resource_group} --query "id" -o tsv)
+  storage_acc_key=$(az storage account keys list -g ${resource_group} -n ${storage_acc_name} --query [0].value -o tsv)
+  sas_exp_date=$(date -u -d "7 days" '+%Y-%m-%dT%H:%MZ')
+  storage_acc_sas_tkn=$(az storage container generate-sas --account-name ${storage_acc_name} -n ${blob_container_name} --permissions acdlrw --auth-mode login --as-user --expiry ${sas_exp_date} -o tsv)
 }
 
 function installKubectl() {
@@ -361,31 +363,32 @@ spec:
     license: "$license_key"
     image: kinetica/kinetica-k8s-intel:v7.1.1
     clusterName: "$kcluster_name"
+    # GPUDB_CONFIG
+    tieredStorageConfig:
+      persistTier:
+        volumeClaim:
+          spec:
+            storageClassName: "managed-premium"
+      diskCacheTier:
+        volumeClaim:
+          spec:
+            storageClassName: "managed-premium"
+      coldStorageTier:
+        coldStorageType: azure_blob
+        coldStorageAzure:
+          basePath: "gpudb/cold_storage/"
+          containerName: "$blob_container_name"
+          sasToken: "$storage_acc_sas_tkn"
+          storageAccountKey: "$storage_acc_key"
+          storageAccountName: "$storage_acc_name"
     # For operators higher than 2.4
     hasPools: true
-    hasRankPerNode: true
-    #
+    ranksPerNode: 1
     replicas: $ranks
-    rankStorageSize: "$rank_storage"
-    persistTier:
-      volumeClaim:
-        spec:
-          storageClassName: "default"
-    diskCacheTier:
-      volumeClaim:
-        spec:
-          storageClassName: "default"
     hostManagerPort:
       name: "hostmanager"
       protocol: TCP
       containerPort: 9300
-    resources:
-      limits:
-        cpu: "5"
-        memory: "100Gi"
-      requests:
-        cpu: "4"
-        memory: "50Gi"
   gadmin:
     isEnabled: true
     containerPort:
@@ -417,9 +420,9 @@ function loadSSLCerts() {
 
 function azureNetworking(){
   echo "\n---------- Setup Firewall and Networking ----------\n"
-  echo "\n---------- creating peerings ----------\n"
-  az network vnet peering create --name "${aks_vnet_name}"-"${fw_vnet_name}" --resource-group "${resource_group}" --vnet-name "${aks_vnet_name}" --remote-vnet "${fw_vnet_id}" --allow-vnet-access
-  az network vnet peering create --name "${fw_vnet_name}"-"${aks_vnet_name}" --resource-group "${resource_group}" --vnet-name "${fw_vnet_name}" --remote-vnet "${aks_vnet_id}" --allow-vnet-access
+  #echo "\n---------- creating peerings ----------\n"
+  #az network vnet peering create --name "${aks_vnet_name}"-"${fw_vnet_name}" --resource-group "${resource_group}" --vnet-name "${aks_vnet_name}" --remote-vnet "${fw_vnet_id}" --allow-vnet-access
+  #az network vnet peering create --name "${fw_vnet_name}"-"${aks_vnet_name}" --resource-group "${resource_group}" --vnet-name "${fw_vnet_name}" --remote-vnet "${aks_vnet_id}" --allow-vnet-access
   echo "\n---------- Firewall Rules ----------\n"
   echo "\n---------- 443 pass through ----------\n"
   az network firewall nat-rule create \
@@ -453,10 +456,16 @@ function azureNetworking(){
     --translated-port "80"
 }
 
+function updateScaleDownPolicy() {
+  # Set gpudb scaleset to min 0 for pause-resume
+  sc_name=$(az aks nodepool list -g ${resource_group} --cluster-name ${aks_name} --query "[?contains(name, 'gpudb')].name" -o tsv)
+  az aks nodepool update -n ${sc_name} -g "${resource_group}" --cluster-name ${aks_name} -u --min-count 0 --max-count ${ranks}
+}
+
 function checkForClusterIP() {
   # Wait for service to be up:
   count=0
-  attempts=60
+  attempts=120
   while [[ "$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
     echo "waiting for ip to be ready"
     count=$((count+1))
@@ -531,10 +540,6 @@ do
       ;;
     --ranks)
       ranks="$1"
-      shift
-      ;;
-    --rank_storage)
-      rank_storage="$1"
       shift
       ;;
     --deployment_type)
@@ -614,7 +619,6 @@ throw_if_empty --subscription_id "$subscription_id"
 throw_if_empty --resource_group "$resource_group"
 throw_if_empty --kcluster_name "$kcluster_name"
 throw_if_empty --ranks "$ranks"
-throw_if_empty --rank_storage "$rank_storage"
 throw_if_empty --deployment_type "$deployment_type"
 throw_if_empty --operator_version "$operator_version"
 throw_if_empty --aks_infra_rg "$aks_infra_rg"
@@ -660,6 +664,8 @@ checkForClusterIP
 deployKineticaCluster
 
 azureNetworking
+
+updateScaleDownPolicy
 
 #checkForKineticaRanksReadiness
 
