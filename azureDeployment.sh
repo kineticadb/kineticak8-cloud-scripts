@@ -87,7 +87,7 @@ function azureCliInstall() {
   fw_vnet_id=$(az network vnet show -n "${fw_vnet_name}" -g ${resource_group} --query "id" -o tsv)
   storage_acc_key=$(az storage account keys list -g ${resource_group} -n ${storage_acc_name} --query [0].value -o tsv)
   sas_exp_date=$(date -u -d "7 days" '+%Y-%m-%dT%H:%MZ')
-  storage_acc_sas_tkn=$(az storage container generate-sas --account-name ${storage_acc_name} -n ${blob_container_name} --permissions acdlrw --auth-mode login --as-user --expiry ${sas_exp_date} -o tsv)
+  storage_acc_sas_tkn=$(az storage container generate-sas --account-name ${storage_acc_name} --account-key ${storage_acc_key}  -n ${blob_container_name} --permissions acdlrw --auth-mode key --expiry ${sas_exp_date} -o tsv)
 }
 
 function installKubectl() {
