@@ -333,7 +333,7 @@ affinity:
 
 EOF
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaAdmin=/values.yaml --param publicIP="" --param storageclass="managed-premium"
+  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaLDAPAdmin=/values.yaml --param publicIP="" --param storageclass="managed-premium"
   kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
 }
 
