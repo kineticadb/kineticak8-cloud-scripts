@@ -670,6 +670,11 @@ fi
 
 identity_resource_id="/subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
 
+if [ -n "$HOME" ]; then
+    # Needed for porter download/install
+    export HOME=/root
+fi
+
 azureCliInstall
 
 installKubectl
