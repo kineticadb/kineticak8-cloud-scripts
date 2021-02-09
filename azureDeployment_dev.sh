@@ -257,7 +257,7 @@ function preflightOperator() {
   if !(command -v porter >/dev/null); then
     echo "\n---------- Installing Porter ----------\n"
     pushd /usr/local/bin/
-    curl https://cdn.porter.sh/v0.27.2/install-linux.sh | bash
+    curl https://cdn.porter.sh/v0.33.0/install-linux.sh | bash
     ln -s ~/.porter/porter /usr/local/bin/porter 
     ln -s ~/.porter/porter-runtime /usr/local/bin/porter-runtime
   fi
@@ -417,11 +417,11 @@ function deployWorkbench() {
   echo "\n---------- Creating Workbench ----------\n"
   # change to manged premium after the fact
   cat <<EOF | tee /opt/workbench.yaml
-apiVersion: app.kinetica.com/v1
+apiVersion: workbench.com.kinetica/v1
 kind: Workbench
 metadata:
   name: "workbench"
-  namespace: kinetica-workbench
+  namespace: "kinetica-workbench"
 spec:
   fqdn: "$fqdn"
   image: kinetica/workbench:$workbench_image_tag
