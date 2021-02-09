@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -l
 
 set -o errexit
 readonly LOG_FILE="/var/log/kineticak8_az_deployment.log"
@@ -670,7 +670,7 @@ fi
 
 identity_resource_id="/subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
 
-if [ -n "$HOME" ]; then
+if [ -z "$HOME" ]; then
     # Needed for porter download/install
     export HOME=/root
 fi
