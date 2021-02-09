@@ -336,10 +336,11 @@ affinity:
 
 EOF
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaLDAPAdmin=/values.yaml --param publicIP="" --param storageclass="managed-premium"
-  porter install workbench-operator -c workbench-operator --tag kinetica/workbench-operator:"$workbench_operator_version"
+  porter storage migrate
+  porter install -c kinetica-k8s-operator --reference kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaLDAPAdmin=/values.yaml --param storageclass="managed-premium"
+  porter install -c kinetica-k8s-operator --reference kinetica/workbench-operator:"$workbench_operator_version"
   kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
-  kubectl -n workbench-operator create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
+  kubectl -n workbench-operator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
 }
 
 function deployKineticaCluster() {
