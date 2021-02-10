@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -l
 
 set -o errexit
 readonly LOG_FILE="/var/log/kineticak8_az_deployment.log"
@@ -13,6 +13,8 @@ set -x
 ####__________________________________
 export KUBECONFIG=/root/.kube/config
 veleroVersion=v1.4.2
+
+workbench_image_tag="v7.1.3.6"
 
 
 echo $@
@@ -43,6 +45,7 @@ Arguments
   --aks_vnet_name                     : The AKS Virtual Network Name to create the VPC peering
   --fw_vnet_name                      : The Firewall Virtual Network Name to create the VPC peering
   --environment                       : Whether to deploy let's encrypt staging or prod versions when deploying
+  --workbench_operator_version        : The version of the Workbench Operator to deploy.
 EOF
 }
 
@@ -254,7 +257,7 @@ function preflightOperator() {
   if !(command -v porter >/dev/null); then
     echo "\n---------- Installing Porter ----------\n"
     pushd /usr/local/bin/
-    curl https://cdn.porter.sh/v0.27.2/install-linux.sh | bash
+    curl https://cdn.porter.sh/v0.33.0/install-linux.sh | bash
     ln -s ~/.porter/porter /usr/local/bin/porter 
     ln -s ~/.porter/porter-runtime /usr/local/bin/porter-runtime
   fi
@@ -333,8 +336,11 @@ affinity:
 
 EOF
   echo "\n---------- Installing Kinetica Operator ----------\n"
-  porter install kinetica-k8s-operator -c kinetica-k8s-operator --tag kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaLDAPAdmin=/values.yaml --param publicIP="" --param storageclass="managed-premium"
+  porter storage migrate
+  porter install -c kinetica-k8s-operator --reference kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaLDAPAdmin=/values.yaml --param storageclass="managed-premium"
+  porter install -c kinetica-k8s-operator --reference kinetica/workbench-operator:"$workbench_operator_version"
   kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
+  kubectl -n workbench-operator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
 }
 
 function deployKineticaCluster() {
@@ -406,6 +412,24 @@ spec:
 EOF
   kubectl -n gpudb apply --wait -f /opt/kinetica_cluster.yaml
   kubectl -n gpudb create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
+}
+
+function deployWorkbench() {
+  echo "\n---------- Creating Workbench ----------\n"
+  # change to manged premium after the fact
+  cat <<EOF | tee /opt/workbench.yaml
+apiVersion: workbench.com.kinetica/v1
+kind: Workbench
+metadata:
+  name: "workbench"
+  namespace: "kinetica-workbench"
+spec:
+  fqdn: "$fqdn"
+  image: kinetica/workbench:$workbench_image_tag
+EOF
+  kubectl create ns kinetica-workbench
+  kubectl -n kinetica-workbench create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
+  kubectl -n kinetica-workbench apply --wait -f /opt/workbench.yaml
 }
 
 function loadSSLCerts() {
@@ -601,6 +625,10 @@ do
       environment="$1"
       shift
       ;;
+    --workbench_operator_version)
+      workbench_operator_version="$1"
+      shift
+      ;;
     --help|-help|-h)
       print_usage
       exit 13
@@ -620,6 +648,7 @@ throw_if_empty --kcluster_name "$kcluster_name"
 throw_if_empty --ranks "$ranks"
 throw_if_empty --deployment_type "$deployment_type"
 throw_if_empty --operator_version "$operator_version"
+throw_if_empty --workbench_operator_version "$workbench_operator_version"
 throw_if_empty --aks_infra_rg "$aks_infra_rg"
 throw_if_empty --identity_name "$identity_name"
 throw_if_empty --id_client_id "$id_client_id"
@@ -641,6 +670,11 @@ fi
 
 identity_resource_id="/subscriptions/$subscription_id/resourceGroups/$resource_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$identity_name"
 
+if [ -z "$HOME" ]; then
+    # Needed for porter download/install
+    export HOME=/root
+fi
+
 azureCliInstall
 
 installKubectl
@@ -661,6 +695,7 @@ echo "\n---------- Waiiting for Ingress to be available --\n"
 checkForClusterIP
 
 deployKineticaCluster
+deployWorkbench
 
 azureNetworking
 
