@@ -15,6 +15,7 @@ export KUBECONFIG=/root/.kube/config
 veleroVersion=v1.4.2
 
 workbench_image_tag="v7.1.3.6"
+db_image_tag="v7.1.2.1-v0.2.16"
 
 
 echo $@
@@ -367,7 +368,7 @@ spec:
       environment: "$ssl_env"
     podManagementPolicy: Parallel
     license: "$license_key"
-    image: kinetica/kinetica-k8s-intel:v7.1.1
+    image: kinetica/kinetica-k8s-intel:${db_image_tag}
     clusterName: "$kcluster_name"
     config:
         tieredStorage:
