@@ -515,7 +515,7 @@ function checkForClusterIP() {
 function checkForKineticaRanksReadiness() {
   # Wait for pods to be in ready state:
   count=0
-  attempts=40
+  attempts=120
   while [[ "$(kubectl -n gpudb get sts -o jsonpath='{.items[*].status.readyReplicas}')" != "$ranks" ]]; do
     echo "waiting for pods to be up" 
     count=$((count+1))
@@ -540,6 +540,11 @@ function checkForGadmin() {
     fi
     sleep 10
   done
+}
+
+function createGlobalAdmins() {
+  curl -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "options": {}}' https://$fqdn/$kcluster_name/gpudb-0/create/role --user "$kinetica_user:$kinetica_pass"
+  curl -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "permission": "system_admin", "options": {}}' https://$fqdn/$kcluster_name/gpudb-0/grant/permission/system --user "$kinetica_user:$kinetica_pass"
 }
 
 #---------------------------------------------------------------------------------
@@ -710,6 +715,8 @@ azureNetworking
 
 updateScaleDownPolicy
 
-#checkForKineticaRanksReadiness
+checkForKineticaRanksReadiness
+
+createGlobalAdmins
 
 #checkForGadmin
