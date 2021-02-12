@@ -371,6 +371,7 @@ spec:
     image: kinetica/kinetica-k8s-intel:${db_image_tag}
     clusterName: "$kcluster_name"
     config:
+        enableTextSearch: true
         tieredStorage:
           persistTier:
             default:  
@@ -489,7 +490,7 @@ function updateScaleDownPolicy() {
 function checkForClusterIP() {
   # Wait for service to be up:
   count=0
-  attempts=120
+  attempts=360
   while [[ "$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
     echo "waiting for ip to be ready"
     count=$((count+1))
@@ -497,6 +498,13 @@ function checkForClusterIP() {
       echo "ERROR: Timeout reached while waiting for IP address to be provisioned, please review deployment for any possible issues, or contact technical support for assistance"
       exit 1
     fi 
+
+    if kubectl -n nginx describe svc ingress-nginx-controller | grep SyncLoadBalancerFailed; then
+        kubectl -n nginx get svc -o yaml ingress-nginx-controller > /opt/ingress_controller.yaml
+        kubectl delete -f /opt/ingress_controller.yaml
+        kubectl apply -f /opt/ingress_controller.yaml
+    fi
+
     sleep 10
   done
   # Get external IP Address:
