@@ -371,7 +371,8 @@ spec:
     image: kinetica/kinetica-k8s-intel:${db_image_tag}
     clusterName: "$kcluster_name"
     config:
-        enableTextSearch: true
+        textSearch:
+          enableTextSearch: true
         tieredStorage:
           persistTier:
             default:  
