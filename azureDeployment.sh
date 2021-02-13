@@ -708,11 +708,11 @@ installPodIdentity
 
 installVeleroCli
 
-echo "\n---------- Waiiting for Ingress to be available --\n"
-checkForClusterIP
-
 deployKineticaCluster
 deployWorkbench
+
+echo "\n---------- Waiiting for Ingress to be available --\n"
+checkForClusterIP
 
 azureNetworking
 
