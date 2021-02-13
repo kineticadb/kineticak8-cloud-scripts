@@ -547,8 +547,8 @@ function checkForGadmin() {
 }
 
 function createGlobalAdmins() {
-  curl -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "options": {}}' https://$fqdn/$kcluster_name/gpudb-0/create/role --user "$kinetica_user:$kinetica_pass"
-  curl -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "permission": "system_admin", "options": {}}' https://$fqdn/$kcluster_name/gpudb-0/grant/permission/system --user "$kinetica_user:$kinetica_pass"
+  curl --insecure -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "options": {}}' https://$fqdn/$kcluster_name/gpudb-0/create/role --user "$kinetica_user:$kinetica_pass"
+  curl --insecure -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "permission": "system_admin", "options": {}}' https://$fqdn/$kcluster_name/gpudb-0/grant/permission/system --user "$kinetica_user:$kinetica_pass"
 }
 
 #---------------------------------------------------------------------------------
