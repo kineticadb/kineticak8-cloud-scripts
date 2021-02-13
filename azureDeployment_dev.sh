@@ -494,7 +494,7 @@ function updateScaleDownPolicy() {
 function checkForClusterIP() {
   # Wait for service to be up:
   count=0
-  attempts=360
+  attempts=60
   while [[ "$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')" == "" ]]; do
     echo "waiting for ip to be ready"
     count=$((count+1))
@@ -507,9 +507,10 @@ function checkForClusterIP() {
         kubectl -n nginx get svc -o yaml ingress-nginx-controller > /opt/ingress_controller.yaml
         kubectl delete -f /opt/ingress_controller.yaml
         kubectl apply -f /opt/ingress_controller.yaml
+        sleep 120
+    else
+        sleep 60
     fi
-
-    sleep 10
   done
   # Get external IP Address:
   clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
