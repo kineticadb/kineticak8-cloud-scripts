@@ -548,8 +548,21 @@ function checkForGadmin() {
 }
 
 function createGlobalAdmins() {
-  curl --insecure -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "options": {}}' https://$fqdn/$kcluster_name/gpudb-0/create/role --user "$kinetica_user:$kinetica_pass"
-  curl --insecure -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "permission": "system_admin", "options": {}}' https://$fqdn/$kcluster_name/gpudb-0/grant/permission/system --user "$kinetica_user:$kinetica_pass"
+  count=0
+  attempts=120
+  while [[ "$(kubectl get pod -n gpudb gpudb-0 -o jsonpath='{$.status.podIP}')" == "" ]]; do
+    echo "waiting for pods to be up"
+    count=$((count+1))
+    if [ "$count" -eq "$attempts" ]; then
+      echo "ERROR: Timeout reached while waiting for Kinetica pod ip for gpudb-0"
+      break
+    fi
+    sleep 10
+  done
+
+  rank0_ip="$(kubectl get pod -n gpudb gpudb-0 -o jsonpath='{$.status.podIP}')"
+  curl -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "options": {}}' http://$rank0_ip:8082/gpudb-0/create/role --user "$kinetica_user:$kinetica_pass"
+  curl -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "permission": "system_admin", "options": {}}' http://$rank0_ip:8082/gpudb-0/grant/permission/system --user "$kinetica_user:$kinetica_pass"
 }
 
 #---------------------------------------------------------------------------------
