@@ -427,6 +427,9 @@ metadata:
   namespace: "kinetica-workbench"
 spec:
   fqdn: "$fqdn"
+  letsEncrypt:
+    enabled: true
+    environment: "$ssl_env"
   image: kinetica/workbench:$workbench_image_tag
 EOF
   kubectl create ns kinetica-workbench
