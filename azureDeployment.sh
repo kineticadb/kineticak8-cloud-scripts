@@ -296,20 +296,6 @@ env:
   LDAP_ORGANISATION: "Kinetica DB Inc."
   LDAP_DOMAIN: "kinetica.com"
 
-customLdifFiles:
-  01-default-users.ldif: |-
-    dn: ou=global_admins,dc=kinetica,dc=com
-    objectClass: organizationalUnit
-    ou: global_admins
-    
-    dn: uid=${kinetica_user},ou=global_admins,dc=kinetica,dc=com
-    objectclass: person
-    objectclass: inetOrgPerson
-    uid: ${kinetica_user}
-    cn: ${kinetica_user}
-    sn: Admin
-    userPassword: ${kinetica_pass}
-
 persistence:
   enabled: true
   accessMode: ReadWriteOnce
@@ -436,6 +422,50 @@ EOF
   kubectl create ns kinetica-workbench
   kubectl -n kinetica-workbench create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
   kubectl -n kinetica-workbench apply --wait -f /opt/workbench.yaml
+}
+
+function createUser() {
+cat <<<"$kinetica_pass" | tr -d '\n' | kubectl create secret generic -n gpudb admin-pwd --from-file=password=/dev/stdin
+
+cat << EOF | tee /opt/user.yaml
+apiVersion: app.kinetica.com/v1
+kind: KineticaUser
+metadata:
+  name: ${kinetica_user}
+  namespace: gpudb
+spec:
+  givenName: Admin Account
+  displayName: Admin
+  lastName: Account
+  passwordSecret: admin-pwd
+  uid: ${kinetica_user}
+  userPrincipalName: admin@acct.com
+EOF
+
+cat << EOF | tee /opt/global-admin-role.yaml
+apiVersion: app.kinetica.com/v1
+kind: KineticaRole
+metadata:
+  name: global-admins
+  namespace: gpudb
+spec:
+  name: "global_admins"
+EOF
+
+cat << EOF | tee /opt/role.yaml
+apiVersion: app.kinetica.com/v1
+kind: KineticaGrant
+metadata:
+  name: ${kinetica_user}-global-admin
+  namespace: gpudb
+spec:
+  role: global_admins
+  member: ${kinetica_user}
+EOF
+
+  kubectl apply -f /opt/user.yaml
+  kubectl apply -f /opt/global-admin-role.yaml
+  kubectl apply -f /opt/role.yaml
 }
 
 function loadSSLCerts() {
@@ -725,6 +755,8 @@ installVeleroCli
 
 deployKineticaCluster
 deployWorkbench
+
+createUser
 
 echo "\n---------- Waiiting for Ingress to be available --\n"
 checkForClusterIP
