@@ -763,7 +763,6 @@ installPodIdentity
 installVeleroCli
 
 deployKineticaCluster
-deployWorkbench
 
 createUser
 
@@ -775,6 +774,8 @@ azureNetworking
 updateScaleDownPolicy
 
 checkForKineticaRanksReadiness
+
+deployWorkbench
 
 createGlobalAdmins
 
