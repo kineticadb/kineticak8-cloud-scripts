@@ -533,14 +533,7 @@ function checkForClusterIP() {
       exit 1
     fi 
 
-    if kubectl -n nginx describe svc ingress-nginx-controller | grep SyncLoadBalancerFailed; then
-        kubectl -n nginx get svc -o yaml ingress-nginx-controller > /opt/ingress_controller.yaml
-        kubectl delete -f /opt/ingress_controller.yaml
-        kubectl apply -f /opt/ingress_controller.yaml
-        sleep 120
-    else
-        sleep 60
-    fi
+    sleep 60
   done
   # Get external IP Address:
   clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
