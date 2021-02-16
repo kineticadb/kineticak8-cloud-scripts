@@ -600,6 +600,8 @@ function createGlobalAdmins() {
       break
     fi
     sleep 10
+    # Re-get pod ip in case it changed
+    rank0_ip="$(kubectl get pod -n gpudb gpudb-0 -o jsonpath='{$.status.podIP}')"
   done
   curl -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "permission": "system_admin", "options": {}}' http://$rank0_ip:8082/gpudb-0/grant/permission/system --user "$kinetica_user:$kinetica_pass"
 }
