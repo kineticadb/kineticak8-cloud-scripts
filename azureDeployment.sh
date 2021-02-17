@@ -60,27 +60,43 @@ function throw_if_empty() {
   fi
 }
 
+function run_cmd_retry() {
+  local cmd="$1"
+  local attempts="${2:-20}"
+  local delay="${3:-30}"
+  local count=0
+
+  while ! eval "$cmd"; do
+    count=$((count+1))
+    if [ "$count" -eq "$attempts" ]; then
+      echo "ERROR: Repeated failures when running: '$cmd'" >&2
+      exit 1
+    fi
+    sleep $delay
+  done
+}
+
 function init() {
   echo "\n---------- Init ----------\n"
-  apt-get update --yes
-  apt-get install wget --yes
+  run_cmd_retry "apt-get update --yes"
+  run_cmd_retry "apt-get install wget --yes"
 }
 
 function azureCliInstall() {
   echo "\n---------- Installing Az Cli ----------\n"
-  curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  run_cmd_retry "curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash"
   
-  az login --identity
+  run_cmd_retry "az login --identity"
   
-  az account set --subscription "${subscription_id}"
-  az aks get-credentials --resource-group "${resource_group}" --name "${aks_name}"
+  run_cmd_retry "az account set --subscription '${subscription_id}'"
+  run_cmd_retry "az aks get-credentials --resource-group '${resource_group}' --name '${aks_name}'"
 
   az config set extension.use_dynamic_install=yes_without_prompt
 
   ## Add managed identity to scalesets
 
   for ssname in $(az vmss list --resource-group "$aks_infra_rg" --query "[].name" --output tsv); do
-    az vmss identity assign -g "$aks_infra_rg" -n "$ssname" --identities "$identity_resource_id"
+    run_cmd_retry "az vmss identity assign -g '$aks_infra_rg' -n '$ssname' --identities '$identity_resource_id'"
   done
 
   
@@ -186,7 +202,7 @@ EOF
   source /opt/info.sh
   
   echo "\n---------- Installing Pod Identity Deployment ----------\n"
-  kubectl apply -f https://raw.githubusercontent.com/Azure/aad-pod-identity/master/deploy/infra/deployment.yaml
+  run_cmd_retry "kubectl apply -f https://raw.githubusercontent.com/Azure/aad-pod-identity/master/deploy/infra/deployment.yaml"
   echo "\n---------- Creating Identity Object ----------\n"
   cat <<EOF | kubectl create -f -
 apiVersion: "aadpodidentity.k8s.io/v1"
@@ -232,20 +248,20 @@ AZURE_RESOURCE_GROUP=${AZURE_RESOURCE_GROUP}
 AZURE_CLOUD_NAME=${AZURE_CLOUD_ENV}
 EOF
 
-  velero install \
-  --provider azure \
-  --plugins velero/velero-plugin-for-microsoft-azure:main \
-  --bucket $AZURE_BLOB_CONTAINER \
-  --secret-file ./credentials-velero \
-  --backup-location-config resourceGroup=$AZURE_BACKUP_RESOURCE_GROUP,storageAccount=$AZURE_STORAGE_ACCOUNT_ID,subscriptionId=$AZURE_SUBSCRIPTION_ID \
-  --snapshot-location-config apiTimeout=10m,resourceGroup=$AZURE_BACKUP_RESOURCE_GROUP,subscriptionId=$AZURE_SUBSCRIPTION_ID \
-  --velero-pod-cpu-request 1 \
-  --velero-pod-mem-request 5Gi \
-  --velero-pod-cpu-limit 2 \
-  --velero-pod-mem-limit 7Gi
+  run_cmd_retry "velero install \
+    --provider azure \
+    --plugins velero/velero-plugin-for-microsoft-azure:main \
+    --bucket $AZURE_BLOB_CONTAINER \
+    --secret-file ./credentials-velero \
+    --backup-location-config resourceGroup=$AZURE_BACKUP_RESOURCE_GROUP,storageAccount=$AZURE_STORAGE_ACCOUNT_ID,subscriptionId=$AZURE_SUBSCRIPTION_ID \
+    --snapshot-location-config apiTimeout=10m,resourceGroup=$AZURE_BACKUP_RESOURCE_GROUP,subscriptionId=$AZURE_SUBSCRIPTION_ID \
+    --velero-pod-cpu-request 1 \
+    --velero-pod-mem-request 5Gi \
+    --velero-pod-cpu-limit 2 \
+    --velero-pod-mem-limit 7Gi"
 
   kubectl patch deployment velero -n velero --patch \
-  '{"spec":{"template":{"metadata":{"labels":{"aadpodidbinding":"'$AZURE_IDENTITY_NAME'"}}}}}'
+    '{"spec":{"template":{"metadata":{"labels":{"aadpodidbinding":"'$AZURE_IDENTITY_NAME'"}}}}}'
 }
 
 
@@ -253,12 +269,12 @@ function preflightOperator() {
   pushd /usr/local/bin/
   if !(command -v docker >/dev/null); then
     echo "\n---------- Installing Docker ----------\n"
-    sudo apt-get install docker.io --yes
+    run_cmd_retry "sudo apt-get install docker.io --yes"
   fi
   if !(command -v porter >/dev/null); then
     echo "\n---------- Installing Porter ----------\n"
     pushd /usr/local/bin/
-    curl https://cdn.porter.sh/v0.33.0/install-linux.sh | bash
+    run_cmd_retry "curl https://cdn.porter.sh/v0.33.0/install-linux.sh | bash"
     ln -s ~/.porter/porter /usr/local/bin/porter 
     ln -s ~/.porter/porter-runtime /usr/local/bin/porter-runtime
   fi
@@ -324,8 +340,8 @@ affinity:
 EOF
   echo "\n---------- Installing Kinetica Operator ----------\n"
   porter storage migrate
-  porter install -c kinetica-k8s-operator --reference kinetica/kinetica-k8s-operator:"$operator_version" --param environment=aks --param kineticaLDAPAdmin=/values.yaml --param storageclass="managed-premium"
-  porter install -c kinetica-k8s-operator --reference kinetica/workbench-operator:"$workbench_operator_version"
+  run_cmd_retry "porter install -c kinetica-k8s-operator --reference kinetica/kinetica-k8s-operator:'$operator_version' --param environment=aks --param kineticaLDAPAdmin=/values.yaml --param storageclass='managed-premium'"
+  run_cmd_retry "porter install -c kinetica-k8s-operator --reference kinetica/workbench-operator:'$workbench_operator_version'"
   kubectl -n kineticaoperator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
   kubectl -n workbench-operator-system create secret generic managed-id --from-literal=resourceid="$identity_resource_id"
 }
@@ -484,35 +500,35 @@ function azureNetworking(){
   echo "\n---------- Setup Firewall ----------\n"
   echo "\n---------- Firewall Rules ----------\n"
   echo "\n---------- 443 pass through ----------\n"
-  az network firewall nat-rule create \
-    --resource-group "${resource_group}" \
-    --firewall-name "${aks_name}-fw" \
-    --collection-name "aks-ingress-dnat-rules-443" \
-    --priority "100" \
-    --action "dnat" \
-    --name "dnat-to-lb-443" \
-    --protocol "TCP" \
-    --source-addresses "*" \
-    --destination-addresses "${public_IP}" \
-    --destination-port "443" \
-    --translated-address "${clusterIP}" \
-    --translated-port "443"
+  run_cmd_retry "az network firewall nat-rule create \
+    --resource-group '${resource_group}' \
+    --firewall-name '${aks_name}-fw' \
+    --collection-name 'aks-ingress-dnat-rules-443' \
+    --priority '100' \
+    --action 'dnat' \
+    --name 'dnat-to-lb-443' \
+    --protocol 'TCP' \
+    --source-addresses '*' \
+    --destination-addresses '${public_IP}' \
+    --destination-port '443' \
+    --translated-address '${clusterIP}' \
+    --translated-port '443'"
     
   echo "\n---------- 80 pass through ----------\n"
 
-  az network firewall nat-rule create \
-    --resource-group "${resource_group}" \
-    --firewall-name "${aks_name}-fw" \
-    --collection-name "aks-ingress-dnat-rules-80" \
-    --priority "200" \
-    --action "dnat" \
-    --name "dnat-to-lb-80" \
-    --protocol "TCP" \
-    --source-addresses "*" \
-    --destination-addresses "${public_IP}" \
-    --destination-port "80" \
-    --translated-address "${clusterIP}" \
-    --translated-port "80"
+  run_cmd_retry "az network firewall nat-rule create \
+    --resource-group '${resource_group}' \
+    --firewall-name '${aks_name}-fw' \
+    --collection-name 'aks-ingress-dnat-rules-80' \
+    --priority '200' \
+    --action 'dnat' \
+    --name 'dnat-to-lb-80' \
+    --protocol 'TCP' \
+    --source-addresses '*' \
+    --destination-addresses '${public_IP}' \
+    --destination-port '80' \
+    --translated-address '${clusterIP}' \
+    --translated-port '80'"
 }
 
 function updateScaleDownPolicy() {
@@ -533,14 +549,7 @@ function checkForClusterIP() {
       exit 1
     fi 
 
-    if kubectl -n nginx describe svc ingress-nginx-controller | grep SyncLoadBalancerFailed; then
-        kubectl -n nginx get svc -o yaml ingress-nginx-controller > /opt/ingress_controller.yaml
-        kubectl delete -f /opt/ingress_controller.yaml
-        kubectl apply -f /opt/ingress_controller.yaml
-        sleep 120
-    else
-        sleep 60
-    fi
+    sleep 60
   done
   # Get external IP Address:
   clusterIP="$(kubectl -n nginx get svc ingress-nginx-controller -o jsonpath='{$.status.loadBalancer.ingress[*].ip}')"
