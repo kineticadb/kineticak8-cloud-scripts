@@ -14,7 +14,7 @@ set -x
 export KUBECONFIG=/root/.kube/config
 veleroVersion=v1.4.2
 
-workbench_image_tag="v7.1.3.13"
+workbench_image_tag="v7.1.3.15"
 db_image_tag="v7.1.2.2-v0.2.17-rc"
 
 
