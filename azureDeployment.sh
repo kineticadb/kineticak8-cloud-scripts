@@ -602,7 +602,7 @@ function createGlobalAdmins() {
   rank0_ip="$(kubectl get pod -n gpudb gpudb-0 -o jsonpath='{$.status.podIP}')"
 
   count=0
-  while [ "$(curl --connect-timeout 5 --max-time 30 -s -o /dev/null -w "%{http_code}" -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "options": {}}' http://$rank0_ip:8082/gpudb-0/create/role --user "$kinetica_user:$kinetica_pass")" != "200" ]; do
+  while [ "$(curl --connect-timeout 5 --max-time 30 -s -o /dev/null -w "%{http_code}" -X POST -H 'content-type: application/json' -d '{"name":"global_admins", "options": {}}' http://$rank0_ip:8082/gpudb-0/create/role --user "$kinetica_user:$kinetica_pass")" != "200" ]; do
     count=$((count+1))
     if [ "$count" -eq "$attempts" ]; then
       echo "ERROR: Unable to create global_admin role for kinetica"
@@ -612,7 +612,7 @@ function createGlobalAdmins() {
     # Re-get pod ip in case it changed
     rank0_ip="$(kubectl get pod -n gpudb gpudb-0 -o jsonpath='{$.status.podIP}')"
   done
-  curl -X POST -H 'content-type: application/json' -d '{"name":"local_admins", "permission": "system_admin", "options": {}}' http://$rank0_ip:8082/gpudb-0/grant/permission/system --user "$kinetica_user:$kinetica_pass"
+  curl -X POST -H 'content-type: application/json' -d '{"name":"global_admins", "permission": "system_admin", "options": {}}' http://$rank0_ip:8082/gpudb-0/grant/permission/system --user "$kinetica_user:$kinetica_pass"
 }
 
 #---------------------------------------------------------------------------------
