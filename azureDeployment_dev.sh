@@ -533,7 +533,7 @@ function azureNetworking(){
 
 function updateScaleDownPolicy() {
   # Set gpudb scaleset to min 0 for pause-resume
-  sc_name=$(az aks nodepool list -g ${resource_group} --cluster-name ${aks_name} --query "[?starts_with(name, 'aks-db')].name" -o tsv)
+  sc_name=$(az aks nodepool list -g ${resource_group} --cluster-name ${aks_name} --query "[?starts_with(name, 'db')].name" -o tsv)
   az aks nodepool update -n ${sc_name} -g "${resource_group}" --cluster-name ${aks_name} -u --min-count 0 --max-count ${ranks}
 }
 
