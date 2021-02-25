@@ -397,6 +397,7 @@ spec:
     # For operators higher than 2.4
     hasPools: true
     ranksPerNode: 1
+    rankStorageSize: 100Gi
     replicas: $ranks
     hostManagerPort:
       name: "hostmanager"
