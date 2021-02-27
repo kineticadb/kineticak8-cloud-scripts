@@ -483,7 +483,7 @@ spec:
   ringName: "${kcluster_name}"
   addGrantRoleRequest:
     role: global_admins
-    member: ${kinetica_user}
+    member: "@${kinetica_user}"
 EOF
 
   kubectl apply -f /opt/user.yaml
