@@ -15,7 +15,7 @@ export KUBECONFIG=/root/.kube/config
 veleroVersion=v1.4.2
 
 workbench_image_tag="v7.1.3.16"
-db_image_tag="v7.1.3.0-v0.2.18-rc"
+db_image_tag="v7.1.3.0-v0.2.20"
 
 
 echo $@
@@ -451,37 +451,43 @@ metadata:
   name: ${kinetica_user}
   namespace: gpudb
 spec:
-  givenName: Admin Account
-  displayName: Admin
-  lastName: Account
-  passwordSecret: admin-pwd
-  uid: ${kinetica_user}
-  userPrincipalName: admin@acct.com
+  ringName: "${kcluster_name}"
+  uid: "${kinetica_user}"
+  action: upsert
+  upsert:
+    givenName: Admin
+    displayName: "Admin Account"
+    lastName: Account
+    passwordSecret: admin-pwd
+    userPrincipalName: admin@acct.com
 EOF
 
-cat << EOF | tee /opt/global-admin-role.yaml
-apiVersion: app.kinetica.com/v1
-kind: KineticaRole
-metadata:
-  name: global-admins
-  namespace: gpudb
-spec:
-  name: "global_admins"
-EOF
+# Created by default... for now
+#cat << EOF | tee /opt/global-admin-role.yaml
+#apiVersion: app.kinetica.com/v1
+#kind: KineticaRole
+#metadata:
+#  name: global-admins
+#  namespace: gpudb
+#spec:
+#  name: "global_admins"
+#EOF
 
 cat << EOF | tee /opt/role.yaml
 apiVersion: app.kinetica.com/v1
 kind: KineticaGrant
 metadata:
-  name: ${kinetica_user}-global-admin
+  name: ${kinetica_user}-global-admin-create
   namespace: gpudb
 spec:
-  role: global_admins
-  member: ${kinetica_user}
+  ringName: "${kcluster_name}"
+  addGrantRoleRequest:
+    role: global_admins
+    member: ${kinetica_user}
 EOF
 
   kubectl apply -f /opt/user.yaml
-  kubectl apply -f /opt/global-admin-role.yaml
+#  kubectl apply -f /opt/global-admin-role.yaml
   kubectl apply -f /opt/role.yaml
 }
 
@@ -585,35 +591,6 @@ function checkForGadmin() {
     fi
     sleep 10
   done
-}
-
-function createGlobalAdmins() {
-  count=0
-  attempts=120
-  while [[ "$(kubectl get pod -n gpudb gpudb-0 -o jsonpath='{$.status.podIP}')" == "" ]]; do
-    echo "waiting for pods to be up"
-    count=$((count+1))
-    if [ "$count" -eq "$attempts" ]; then
-      echo "ERROR: Timeout reached while waiting for Kinetica pod ip for gpudb-0"
-      break
-    fi
-    sleep 10
-  done
-
-  rank0_ip="$(kubectl get pod -n gpudb gpudb-0 -o jsonpath='{$.status.podIP}')"
-
-  count=0
-  while [ "$(curl --connect-timeout 5 --max-time 30 -s -o /dev/null -w "%{http_code}" -X POST -H 'content-type: application/json' -d '{"name":"global_admins", "options": {}}' http://$rank0_ip:8082/gpudb-0/create/role --user "$kinetica_user:$kinetica_pass")" != "200" ]; do
-    count=$((count+1))
-    if [ "$count" -eq "$attempts" ]; then
-      echo "ERROR: Unable to create global_admin role for kinetica"
-      break
-    fi
-    sleep 10
-    # Re-get pod ip in case it changed
-    rank0_ip="$(kubectl get pod -n gpudb gpudb-0 -o jsonpath='{$.status.podIP}')"
-  done
-  curl -X POST -H 'content-type: application/json' -d '{"name":"global_admins", "permission": "system_admin", "options": {}}' http://$rank0_ip:8082/gpudb-0/grant/permission/system --user "$kinetica_user:$kinetica_pass"
 }
 
 #---------------------------------------------------------------------------------
@@ -788,7 +765,5 @@ updateScaleDownPolicy
 checkForKineticaRanksReadiness
 
 deployWorkbench
-
-createGlobalAdmins
 
 #checkForGadmin
