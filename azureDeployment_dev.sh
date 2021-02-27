@@ -593,6 +593,14 @@ function checkForGadmin() {
   done
 }
 
+function checkCertificates() {
+  # It seems that sometimes, even though we get a cert from cert-manager, ingress doesn't set them up?
+  # Took a restart of the controller pods to get it straightened out...
+  if curl -v https://${fqdn}/gadmin 2>&1 | grep "Kubernetes Ingress Controller Fake Certificate"; then
+      kubectl delete pods -n nginx --all
+  fi
+}
+
 #---------------------------------------------------------------------------------
 
 while [[ $# > 0 ]]
@@ -765,5 +773,7 @@ updateScaleDownPolicy
 checkForKineticaRanksReadiness
 
 deployWorkbench
+
+checkCertificates
 
 #checkForGadmin
