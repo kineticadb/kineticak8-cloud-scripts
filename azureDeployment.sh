@@ -473,7 +473,7 @@ EOF
 #  name: "global_admins"
 #EOF
 
-cat << EOF | tee /opt/role.yaml
+cat << EOF | tee /opt/grant.yaml
 apiVersion: app.kinetica.com/v1
 kind: KineticaGrant
 metadata:
@@ -488,7 +488,7 @@ EOF
 
   kubectl apply -f /opt/user.yaml
 #  kubectl apply -f /opt/global-admin-role.yaml
-  kubectl apply -f /opt/role.yaml
+  kubectl apply -f /opt/grant.yaml
 }
 
 function loadSSLCerts() {
